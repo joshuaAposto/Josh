@@ -260,7 +260,20 @@ async function loadStats() {
 // ── LOAD KEYS ──────────────────────────
 async function loadKeys() {
   const res = await fetch('/admin/keys', { headers: { 'x-admin-password': adminPw } });
-  allKeys = await res.json();
+  const raw = await res.json();
+  const now = Date.now();
+  // Normalize both old format (expires string) and new format (expiresAt ms)
+  allKeys = raw.map(k => {
+    const expiresAt    = k.expiresAt || (k.expires ? new Date(k.expires).getTime() : 0);
+    const createdAt    = k.createdAt || (expiresAt - (k.days ? k.days * 86400000 : 86400000));
+    const expired      = k.expired !== undefined ? k.expired : (expiresAt <= now);
+    const totalMs      = expiresAt - createdAt;
+    const days         = k.days || Math.max(1, Math.round(totalMs / 86400000));
+    const msLeft       = Math.max(0, expiresAt - now);
+    const daysRemaining = k.daysRemaining !== undefined ? k.daysRemaining : Math.ceil(msLeft / 86400000);
+    const activated    = k.activated !== undefined ? k.activated : !!k.hwid;
+    return { ...k, expiresAt, days, daysRemaining, expired, activated };
+  });
   renderTable(allKeys);
 }
 
@@ -286,9 +299,10 @@ function renderTable(keys) {
                  : !k.activated ? 'unused'
                  : 'active';
     const badgeCls = { active:'badge-active', expired:'badge-expired', revoked:'badge-revoked', unused:'badge-unused' }[status];
-    const expiryStr = new Date(k.expiresAt).toLocaleDateString();
-    const hwidShort = k.hwid === 'Not activated' ? '<span class="text-slate-600">—</span>'
-                    : `<span class="text-[10px] text-slate-400 font-mono">${k.hwid.substring(0,12)}…</span>`;
+    const expiryStr = k.expiresAt ? new Date(k.expiresAt).toLocaleDateString() : '—';
+    const hwidShort = !k.hwid
+                    ? '<span class="text-slate-600">—</span>'
+                    : `<span class="text-[10px] text-slate-400 font-mono">${String(k.hwid).substring(0,12)}…</span>`;
     return `
     <tr class="border-b border-red-900/20 hover:bg-red-950/20 transition" data-key="${k.key}">
       <td class="py-2 pr-2 font-semibold text-slate-200">${esc(k.username)}</td>

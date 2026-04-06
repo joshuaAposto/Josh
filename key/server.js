@@ -255,15 +255,29 @@ app.get('/admin/keys', async (req, res) => {
     try {
         const keys = await sql`SELECT * FROM keys ORDER BY created_at DESC`;
         const now  = Date.now();
-        res.json(keys.map(k => ({
-            key:      k.key_string,
-            hwid:     k.hwid || null,
-            ip:       k.ip_address,
-            username: k.username,
-            expires:  new Date(Number(k.expires_at)).toISOString(),
-            active:   Number(k.expires_at) > now && !k.revoked,
-            revoked:  k.revoked
-        })));
+        res.json(keys.map(k => {
+            const expiresAt     = Number(k.expires_at);
+            const createdAt     = Number(k.created_at) || (expiresAt - 86400000);
+            const expired       = expiresAt <= now;
+            const totalMs       = expiresAt - createdAt;
+            const days          = Math.max(1, Math.round(totalMs / 86400000));
+            const msLeft        = Math.max(0, expiresAt - now);
+            const daysRemaining = Math.ceil(msLeft / 86400000);
+            const activated     = !!k.hwid;
+            return {
+                key:          k.key_string,
+                hwid:         k.hwid || null,
+                ip:           k.ip_address,
+                username:     k.username,
+                expiresAt:    expiresAt,
+                days:         days,
+                daysRemaining: daysRemaining,
+                expired:      expired,
+                activated:    activated,
+                active:       !expired && !k.revoked,
+                revoked:      k.revoked
+            };
+        }));
     } catch (e) {
         res.status(500).json({ error: 'DB error' });
     }
