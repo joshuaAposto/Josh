@@ -354,6 +354,37 @@ app.post('/admin/reset-hwid', async (req, res) => {
     }
 });
 
+// Renew key — extends expiry by N days; works on expired AND active keys; clears revoked flag
+app.post('/admin/renew', async (req, res) => {
+    if (!checkAdmin(req, res)) return;
+    try {
+        const { key, days } = req.body;
+        if (!key || !days || days < 1 || days > 3650) return res.status(400).json({ error: 'key and days (1-3650) required' });
+
+        const rows = await sql`SELECT expires_at FROM keys WHERE key_string = ${key} LIMIT 1`;
+        if (!rows.length) return res.status(404).json({ error: 'Key not found' });
+
+        const now        = Date.now();
+        const currentExp = Number(rows[0].expires_at);
+        // If still active, extend from current expiry; if expired, restart from now
+        const base       = currentExp > now ? currentExp : now;
+        const newExpiry  = base + days * 86400000;
+
+        await sql`
+            UPDATE keys
+            SET expires_at = ${newExpiry},
+                revoked    = FALSE
+            WHERE key_string = ${key}
+        `;
+
+        const msLeft        = newExpiry - now;
+        const daysRemaining = Math.ceil(msLeft / 86400000);
+        res.json({ success: true, newExpiresAt: newExpiry, daysRemaining });
+    } catch (e) {
+        res.status(500).json({ error: 'DB error' });
+    }
+});
+
 // Static files (after route handlers)
 app.use(express.static(path.join(__dirname, 'public')));
 
