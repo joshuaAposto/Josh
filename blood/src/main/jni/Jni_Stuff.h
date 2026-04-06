@@ -64,95 +64,95 @@ const char *GetDeviceUniqueIdentifier(JNIEnv *env, const char *uuid) {
 }
 
 struct MemoryStruct {
-	char *memory;
-	size_t size;
+        char *memory;
+        size_t size;
 };
 
 static size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp) {
-	size_t realsize = size * nmemb;
-	struct MemoryStruct *mem = (struct MemoryStruct *) userp;
-	
-	mem->memory = (char *) realloc(mem->memory, mem->size + realsize + 1);
-	if (mem->memory == NULL) {
-		return 0;
-	}
-	memcpy(&(mem->memory[mem->size]), contents, realsize);
-	mem->size += realsize;
-	mem->memory[mem->size] = 0;
-	return realsize;
+        size_t realsize = size * nmemb;
+        struct MemoryStruct *mem = (struct MemoryStruct *) userp;
+        
+        mem->memory = (char *) realloc(mem->memory, mem->size + realsize + 1);
+        if (mem->memory == NULL) {
+                return 0;
+        }
+        memcpy(&(mem->memory[mem->size]), contents, realsize);
+        mem->size += realsize;
+        mem->memory[mem->size] = 0;
+        return realsize;
 }
 
 int ShowSoftKeyboardInput() {
-	jint result;
-	jint flags = 0;
-	
-	JNIEnv *env;
-	jvm->AttachCurrentThread(&env, NULL);
-	
-	jclass looperClass = env->FindClass(OBFUSCATE("android/os/Looper"));
-	auto prepareMethod = env->GetStaticMethodID(looperClass, OBFUSCATE("prepare"), OBFUSCATE("()V"));
-	env->CallStaticVoidMethod(looperClass, prepareMethod);
-	
-	jclass activityThreadClass = env->FindClass(OBFUSCATE("android/app/ActivityThread"));
-	jfieldID sCurrentActivityThreadField = env->GetStaticFieldID(activityThreadClass, OBFUSCATE("sCurrentActivityThread"), OBFUSCATE("Landroid/app/ActivityThread;"));
-	jobject sCurrentActivityThread = env->GetStaticObjectField(activityThreadClass, sCurrentActivityThreadField);
-	
-	jfieldID mInitialApplicationField = env->GetFieldID(activityThreadClass, OBFUSCATE("mInitialApplication"), OBFUSCATE("Landroid/app/Application;"));
-	jobject mInitialApplication = env->GetObjectField(sCurrentActivityThread, mInitialApplicationField);
-	
-	jclass contextClass = env->FindClass(OBFUSCATE("android/content/Context"));
-	jfieldID fieldINPUT_METHOD_SERVICE = env->GetStaticFieldID(contextClass, OBFUSCATE("INPUT_METHOD_SERVICE"), OBFUSCATE("Ljava/lang/String;"));
-	jobject INPUT_METHOD_SERVICE = env->GetStaticObjectField(contextClass, fieldINPUT_METHOD_SERVICE);
-	jmethodID getSystemServiceMethod = env->GetMethodID(contextClass, OBFUSCATE("getSystemService"), OBFUSCATE("(Ljava/lang/String;)Ljava/lang/Object;"));
-	jobject callObjectMethod = env->CallObjectMethod(mInitialApplication, getSystemServiceMethod, INPUT_METHOD_SERVICE);
-	
-	jclass classInputMethodManager = env->FindClass(OBFUSCATE("android/view/inputmethod/InputMethodManager"));
+        jint result;
+        jint flags = 0;
+        
+        JNIEnv *env;
+        jvm->AttachCurrentThread(&env, NULL);
+        
+        jclass looperClass = env->FindClass(OBFUSCATE("android/os/Looper"));
+        auto prepareMethod = env->GetStaticMethodID(looperClass, OBFUSCATE("prepare"), OBFUSCATE("()V"));
+        env->CallStaticVoidMethod(looperClass, prepareMethod);
+        
+        jclass activityThreadClass = env->FindClass(OBFUSCATE("android/app/ActivityThread"));
+        jfieldID sCurrentActivityThreadField = env->GetStaticFieldID(activityThreadClass, OBFUSCATE("sCurrentActivityThread"), OBFUSCATE("Landroid/app/ActivityThread;"));
+        jobject sCurrentActivityThread = env->GetStaticObjectField(activityThreadClass, sCurrentActivityThreadField);
+        
+        jfieldID mInitialApplicationField = env->GetFieldID(activityThreadClass, OBFUSCATE("mInitialApplication"), OBFUSCATE("Landroid/app/Application;"));
+        jobject mInitialApplication = env->GetObjectField(sCurrentActivityThread, mInitialApplicationField);
+        
+        jclass contextClass = env->FindClass(OBFUSCATE("android/content/Context"));
+        jfieldID fieldINPUT_METHOD_SERVICE = env->GetStaticFieldID(contextClass, OBFUSCATE("INPUT_METHOD_SERVICE"), OBFUSCATE("Ljava/lang/String;"));
+        jobject INPUT_METHOD_SERVICE = env->GetStaticObjectField(contextClass, fieldINPUT_METHOD_SERVICE);
+        jmethodID getSystemServiceMethod = env->GetMethodID(contextClass, OBFUSCATE("getSystemService"), OBFUSCATE("(Ljava/lang/String;)Ljava/lang/Object;"));
+        jobject callObjectMethod = env->CallObjectMethod(mInitialApplication, getSystemServiceMethod, INPUT_METHOD_SERVICE);
+        
+        jclass classInputMethodManager = env->FindClass(OBFUSCATE("android/view/inputmethod/InputMethodManager"));
     jmethodID toggleSoftInputId = env->GetMethodID(classInputMethodManager, OBFUSCATE("toggleSoftInput"), OBFUSCATE("(II)V"));
-	
-	if (result) {
-		env->CallVoidMethod(callObjectMethod, toggleSoftInputId, 2, flags);
-	} else {
-		env->CallVoidMethod(callObjectMethod, toggleSoftInputId, flags, flags);
-	}
-	
-	env->DeleteLocalRef(classInputMethodManager);
-	env->DeleteLocalRef(callObjectMethod);
-	env->DeleteLocalRef(contextClass);
+        
+        if (result) {
+                env->CallVoidMethod(callObjectMethod, toggleSoftInputId, 2, flags);
+        } else {
+                env->CallVoidMethod(callObjectMethod, toggleSoftInputId, flags, flags);
+        }
+        
+        env->DeleteLocalRef(classInputMethodManager);
+        env->DeleteLocalRef(callObjectMethod);
+        env->DeleteLocalRef(contextClass);
     env->DeleteLocalRef(mInitialApplication);
     env->DeleteLocalRef(activityThreadClass);
-	jvm->DetachCurrentThread();
-	
-	return result;
+        jvm->DetachCurrentThread();
+        
+        return result;
 }
 
 int PollUnicodeChars() {
-	JNIEnv *env;
-	jvm->AttachCurrentThread(&env, NULL);
-	
-	jclass looperClass = env->FindClass(OBFUSCATE("android/os/Looper"));
-	auto prepareMethod = env->GetStaticMethodID(looperClass, OBFUSCATE("prepare"), OBFUSCATE("()V"));
-	env->CallStaticVoidMethod(looperClass, prepareMethod);
-	
-	jclass activityThreadClass = env->FindClass(OBFUSCATE("android/app/ActivityThread"));
-	jfieldID sCurrentActivityThreadField = env->GetStaticFieldID(activityThreadClass, OBFUSCATE("sCurrentActivityThread"), OBFUSCATE("Landroid/app/ActivityThread;"));
-	jobject sCurrentActivityThread = env->GetStaticObjectField(activityThreadClass, sCurrentActivityThreadField);
-	
-	jfieldID mInitialApplicationField = env->GetFieldID(activityThreadClass, OBFUSCATE("mInitialApplication"), OBFUSCATE("Landroid/app/Application;"));
-	jobject mInitialApplication = env->GetObjectField(sCurrentActivityThread, mInitialApplicationField);
-	
-	jclass keyEventClass = env->FindClass(OBFUSCATE("android/view/KeyEvent"));
-	jmethodID getUnicodeCharMethod = env->GetMethodID(keyEventClass, OBFUSCATE("getUnicodeChar"), OBFUSCATE("(I)I"));
-	
-	ImGuiIO& io = ImGui::GetIO();
+        JNIEnv *env;
+        jvm->AttachCurrentThread(&env, NULL);
+        
+        jclass looperClass = env->FindClass(OBFUSCATE("android/os/Looper"));
+        auto prepareMethod = env->GetStaticMethodID(looperClass, OBFUSCATE("prepare"), OBFUSCATE("()V"));
+        env->CallStaticVoidMethod(looperClass, prepareMethod);
+        
+        jclass activityThreadClass = env->FindClass(OBFUSCATE("android/app/ActivityThread"));
+        jfieldID sCurrentActivityThreadField = env->GetStaticFieldID(activityThreadClass, OBFUSCATE("sCurrentActivityThread"), OBFUSCATE("Landroid/app/ActivityThread;"));
+        jobject sCurrentActivityThread = env->GetStaticObjectField(activityThreadClass, sCurrentActivityThreadField);
+        
+        jfieldID mInitialApplicationField = env->GetFieldID(activityThreadClass, OBFUSCATE("mInitialApplication"), OBFUSCATE("Landroid/app/Application;"));
+        jobject mInitialApplication = env->GetObjectField(sCurrentActivityThread, mInitialApplicationField);
+        
+        jclass keyEventClass = env->FindClass(OBFUSCATE("android/view/KeyEvent"));
+        jmethodID getUnicodeCharMethod = env->GetMethodID(keyEventClass, OBFUSCATE("getUnicodeChar"), OBFUSCATE("(I)I"));
+        
+        ImGuiIO& io = ImGui::GetIO();
     
-	int return_key = env->CallIntMethod(keyEventClass, getUnicodeCharMethod);
-	
-	env->DeleteLocalRef(keyEventClass);
-	env->DeleteLocalRef(mInitialApplication);
+        int return_key = env->CallIntMethod(keyEventClass, getUnicodeCharMethod);
+        
+        env->DeleteLocalRef(keyEventClass);
+        env->DeleteLocalRef(mInitialApplication);
     env->DeleteLocalRef(activityThreadClass);
-	jvm->DetachCurrentThread();
-	
-	return return_key;
+        jvm->DetachCurrentThread();
+        
+        return return_key;
 }
 
 void CopyLinkToClipboard(const std::string& text) {
@@ -198,6 +198,57 @@ void CopyLinkToClipboard(const std::string& text) {
     env->DeleteLocalRef(clipDataClass);
     env->DeleteLocalRef(clipboardManagerClass);
     env->DeleteLocalRef(clipboardManager);
+    env->DeleteLocalRef(contextClass);
+    env->DeleteLocalRef(mInitialApplication);
+    env->DeleteLocalRef(activityThreadClass);
+
+    jvm->DetachCurrentThread();
+}
+
+void OpenBrowserWithUrl(const std::string& url) {
+    JNIEnv *env;
+    jvm->AttachCurrentThread(&env, NULL);
+
+    jclass looperClass = env->FindClass(OBFUSCATE("android/os/Looper"));
+    jmethodID prepareMethod = env->GetStaticMethodID(looperClass, OBFUSCATE("prepare"), OBFUSCATE("()V"));
+    env->CallStaticVoidMethod(looperClass, prepareMethod);
+    env->ExceptionClear();
+
+    jclass activityThreadClass = env->FindClass(OBFUSCATE("android/app/ActivityThread"));
+    jfieldID sCurrentActivityThreadField = env->GetStaticFieldID(activityThreadClass, OBFUSCATE("sCurrentActivityThread"), OBFUSCATE("Landroid/app/ActivityThread;"));
+    jobject sCurrentActivityThread = env->GetStaticObjectField(activityThreadClass, sCurrentActivityThreadField);
+
+    jfieldID mInitialApplicationField = env->GetFieldID(activityThreadClass, OBFUSCATE("mInitialApplication"), OBFUSCATE("Landroid/app/Application;"));
+    jobject mInitialApplication = env->GetObjectField(sCurrentActivityThread, mInitialApplicationField);
+
+    jclass uriClass = env->FindClass(OBFUSCATE("android/net/Uri"));
+    jmethodID parseMethod = env->GetStaticMethodID(uriClass, OBFUSCATE("parse"), OBFUSCATE("(Ljava/lang/String;)Landroid/net/Uri;"));
+    jstring jUrl = env->NewStringUTF(url.c_str());
+    jobject uri = env->CallStaticObjectMethod(uriClass, parseMethod, jUrl);
+
+    jclass intentClass = env->FindClass(OBFUSCATE("android/content/Intent"));
+    jfieldID actionViewField = env->GetStaticFieldID(intentClass, OBFUSCATE("ACTION_VIEW"), OBFUSCATE("Ljava/lang/String;"));
+    jobject actionView = env->GetStaticObjectField(intentClass, actionViewField);
+
+    jmethodID intentInitMethod = env->GetMethodID(intentClass, OBFUSCATE("<init>"), OBFUSCATE("(Ljava/lang/String;Landroid/net/Uri;)V"));
+    jobject intent = env->NewObject(intentClass, intentInitMethod, actionView, uri);
+
+    jfieldID flagNewTaskField = env->GetStaticFieldID(intentClass, OBFUSCATE("FLAG_ACTIVITY_NEW_TASK"), OBFUSCATE("I"));
+    jint flagNewTask = env->GetStaticIntField(intentClass, flagNewTaskField);
+
+    jmethodID addFlagsMethod = env->GetMethodID(intentClass, OBFUSCATE("addFlags"), OBFUSCATE("(I)Landroid/content/Intent;"));
+    env->CallObjectMethod(intent, addFlagsMethod, flagNewTask);
+
+    jclass contextClass = env->FindClass(OBFUSCATE("android/content/Context"));
+    jmethodID startActivityMethod = env->GetMethodID(contextClass, OBFUSCATE("startActivity"), OBFUSCATE("(Landroid/content/Intent;)V"));
+    env->CallVoidMethod(mInitialApplication, startActivityMethod, intent);
+    env->ExceptionClear();
+
+    env->DeleteLocalRef(jUrl);
+    env->DeleteLocalRef(uri);
+    env->DeleteLocalRef(uriClass);
+    env->DeleteLocalRef(intent);
+    env->DeleteLocalRef(intentClass);
     env->DeleteLocalRef(contextClass);
     env->DeleteLocalRef(mInitialApplication);
     env->DeleteLocalRef(activityThreadClass);
@@ -265,41 +316,41 @@ std::string getClipboard() {
 }
 
 std::string Login(const char *user_key) {
-	JNIEnv *env;
+        JNIEnv *env;
     jvm->AttachCurrentThread(&env, 0);
-	
-	auto looperClass = env->FindClass(OBFUSCATE("android/os/Looper"));
-	auto prepareMethod = env->GetStaticMethodID(looperClass, OBFUSCATE("prepare"), OBFUSCATE("()V"));
-	env->CallStaticVoidMethod(looperClass, prepareMethod);
-	
-	jclass activityThreadClass = env->FindClass(OBFUSCATE("android/app/ActivityThread"));
-	jfieldID sCurrentActivityThreadField = env->GetStaticFieldID(activityThreadClass, OBFUSCATE("sCurrentActivityThread"), OBFUSCATE("Landroid/app/ActivityThread;"));
-	jobject sCurrentActivityThread = env->GetStaticObjectField(activityThreadClass, sCurrentActivityThreadField);
-	
-	jfieldID mInitialApplicationField = env->GetFieldID(activityThreadClass, OBFUSCATE("mInitialApplication"), OBFUSCATE("Landroid/app/Application;"));
-	jobject mInitialApplication = env->GetObjectField(sCurrentActivityThread, mInitialApplicationField);
-	
-	std::string hwid = user_key;
-	hwid += GetAndroidID(env, mInitialApplication);
-	hwid += GetDeviceModel(env);
-	hwid += GetDeviceBrand(env);
-	std::string UUID = GetDeviceUniqueIdentifier(env, hwid.c_str());
-	DeviceBrand = GetDeviceBrand(env);
+        
+        auto looperClass = env->FindClass(OBFUSCATE("android/os/Looper"));
+        auto prepareMethod = env->GetStaticMethodID(looperClass, OBFUSCATE("prepare"), OBFUSCATE("()V"));
+        env->CallStaticVoidMethod(looperClass, prepareMethod);
+        
+        jclass activityThreadClass = env->FindClass(OBFUSCATE("android/app/ActivityThread"));
+        jfieldID sCurrentActivityThreadField = env->GetStaticFieldID(activityThreadClass, OBFUSCATE("sCurrentActivityThread"), OBFUSCATE("Landroid/app/ActivityThread;"));
+        jobject sCurrentActivityThread = env->GetStaticObjectField(activityThreadClass, sCurrentActivityThreadField);
+        
+        jfieldID mInitialApplicationField = env->GetFieldID(activityThreadClass, OBFUSCATE("mInitialApplication"), OBFUSCATE("Landroid/app/Application;"));
+        jobject mInitialApplication = env->GetObjectField(sCurrentActivityThread, mInitialApplicationField);
+        
+        std::string hwid = user_key;
+        hwid += GetAndroidID(env, mInitialApplication);
+        hwid += GetDeviceModel(env);
+        hwid += GetDeviceBrand(env);
+        std::string UUID = GetDeviceUniqueIdentifier(env, hwid.c_str());
+        DeviceBrand = GetDeviceBrand(env);
     DeviceModel = GetDeviceModel(env);
     DeviceID = GetAndroidID(env, mInitialApplication);
-	jvm->DetachCurrentThread();
-	std::string errMsg;
-	
-	struct MemoryStruct chunk{};
-	chunk.memory = (char *) malloc(1);
-	chunk.size = 0;
-	
-	CURL *curl;
-	CURLcode res;
-	curl = curl_easy_init();
-	
-	
-	// KURO PANEL
+        jvm->DetachCurrentThread();
+        std::string errMsg;
+        
+        struct MemoryStruct chunk{};
+        chunk.memory = (char *) malloc(1);
+        chunk.size = 0;
+        
+        CURL *curl;
+        CURLcode res;
+        curl = curl_easy_init();
+        
+        
+        // KURO PANEL
     
    if (curl) {
             std::string api_key = oxorany("http://panelofdcibx4am911.x10.mx/connect");

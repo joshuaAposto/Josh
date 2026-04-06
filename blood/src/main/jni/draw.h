@@ -1088,9 +1088,15 @@ void DrawMenu(ImGuiIO &io) {
 
             ImGui::TextColored(themeColor, oxorany("STEP 1: GET YOUR FREE 1DAY KEY"));
             
-            if (ImGui::Button(oxorany("COPY GET-KEY LINK TO CLIPBOARD"), ImVec2(-1, 45))) {
+            float halfW = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x) * 0.5f;
+            if (ImGui::Button(oxorany("OPEN IN BROWSER"), ImVec2(halfW, 45))) {
+                OpenBrowserWithUrl(link);
+                snprintf(auth_status, sizeof(auth_status), oxorany("Opening browser..."));
+            }
+            ImGui::SameLine();
+            if (ImGui::Button(oxorany("COPY LINK"), ImVec2(halfW, 45))) {
                 CopyLinkToClipboard(link); 
-                snprintf(auth_status, sizeof(auth_status), oxorany("Link Copied! Open your browser and paste."));
+                snprintf(auth_status, sizeof(auth_status), oxorany("Link Copied! Paste in browser."));
             }
 
             ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
