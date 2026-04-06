@@ -1,0 +1,156 @@
+// Updated custom_theme.cpp with more vibrant colors and animations
+#pragma once
+
+#include "../../hpp/imgui/custom_theme.h"
+#include <cmath>
+#include <vector>
+#include <random>
+
+struct Star {
+    ImVec2 pos;
+    float size;
+    float speed;
+    float alpha;
+    float phase;
+};
+
+static std::vector<Star> stars;
+static bool stars_initialized = false;
+
+void InitStars(ImVec2 display_size) {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<float> pos_x(0, display_size.x);
+    std::uniform_real_distribution<float> pos_y(0, display_size.y);
+    std::uniform_real_distribution<float> size(1.0f, 3.0f);
+    std::uniform_real_distribution<float> speed(0.2f, 1.0f);
+    std::uniform_real_distribution<float> alpha(0.3f, 0.8f);
+    std::uniform_real_distribution<float> phase(0.0f, 6.28f);
+
+    stars.clear();
+    for (int i = 0; i < 100; i++) {
+        stars.push_back({
+            ImVec2(pos_x(gen), pos_y(gen)),
+            size(gen),
+            speed(gen),
+            alpha(gen),
+            phase(gen)
+        });
+    }
+    stars_initialized = true;
+}
+
+void UpdateStars(float delta_time) {
+    for (auto& star : stars) {
+        star.phase += delta_time * star.speed;
+        star.alpha = 0.3f + 0.5f * (sinf(star.phase) + 1.0f) * 0.5f;
+    }
+}
+
+void DrawStars(ImDrawList* draw_list) {
+    for (const auto& star : stars) {
+        draw_list->AddCircleFilled(star.pos, star.size, 
+            IM_COL32(255, 255, 255, static_cast<int>(255 * star.alpha)), 
+            8);
+    }
+}
+
+void StyleColorsCustom(ImGuiStyle* _style) {
+    ImGuiStyle& style = _style ? *_style : ImGui::GetStyle();
+    
+    // Smooth rounded corners
+    style.TabRounding = 8.0f;
+    style.TabBorderSize = 1.0f;
+    style.WindowRounding = 10.0f;
+    style.FrameRounding = 6.0f;
+    style.ScrollbarRounding = 6.0f;
+    style.GrabRounding = 4.0f;
+    style.ChildRounding = 8.0f;
+    style.PopupRounding = 8.0f;
+    
+    // Spacing and padding for better visual hierarchy
+    style.WindowPadding = ImVec2(12, 12);
+    style.FramePadding = ImVec2(10, 6);
+    style.ItemSpacing = ImVec2(10, 8);
+    style.ItemInnerSpacing = ImVec2(8, 6);
+    style.TouchExtraPadding = ImVec2(8, 8);
+    
+    // Vibrant color scheme with smooth transitions
+    style.Colors[ImGuiCol_Text]                  = ImColor(240, 240, 240);
+    style.Colors[ImGuiCol_TextDisabled]          = ImColor(130, 130, 130);
+    style.Colors[ImGuiCol_WindowBg]              = ImColor(18, 18, 24);
+    style.Colors[ImGuiCol_ChildBg]               = ImColor(24, 24, 32);
+    style.Colors[ImGuiCol_PopupBg]               = ImColor(20, 20, 28, 240);
+    style.Colors[ImGuiCol_Border]                = ImColor(80, 80, 100, 128);
+    style.Colors[ImGuiCol_BorderShadow]          = ImColor(0, 0, 0, 0);
+    
+    // Frame colors with gradient effect
+    style.Colors[ImGuiCol_FrameBg]               = ImColor(40, 40, 50);
+    style.Colors[ImGuiCol_FrameBgHovered]        = ImColor(60, 60, 70);
+    style.Colors[ImGuiCol_FrameBgActive]         = ImColor(50, 50, 60);
+    
+    // Title bar colors
+    style.Colors[ImGuiCol_TitleBg]               = ImColor(30, 30, 40);
+    style.Colors[ImGuiCol_TitleBgActive]         = ImColor(40, 40, 50);
+    style.Colors[ImGuiCol_TitleBgCollapsed]      = ImColor(20, 20, 30);
+    
+    // Menu bar
+    style.Colors[ImGuiCol_MenuBarBg]             = ImColor(25, 25, 35);
+    
+    // Scrollbar
+    style.Colors[ImGuiCol_ScrollbarBg]           = ImColor(20, 20, 30);
+    style.Colors[ImGuiCol_ScrollbarGrab]         = ImColor(60, 60, 80);
+    style.Colors[ImGuiCol_ScrollbarGrabHovered]  = ImColor(80, 80, 100);
+    style.Colors[ImGuiCol_ScrollbarGrabActive]   = ImColor(100, 100, 120);
+    
+    // Checkbox and radio button
+    style.Colors[ImGuiCol_CheckMark]             = ImColor(100, 200, 255);
+    
+    // Slider
+    style.Colors[ImGuiCol_SliderGrab]            = ImColor(100, 180, 255);
+    style.Colors[ImGuiCol_SliderGrabActive]      = ImColor(120, 200, 255);
+    
+    // Buttons with gradient effect
+    style.Colors[ImGuiCol_Button]                = ImColor(50, 60, 80);
+    style.Colors[ImGuiCol_ButtonHovered]         = ImColor(70, 80, 100);
+    style.Colors[ImGuiCol_ButtonActive]          = ImColor(90, 100, 120);
+    
+    // Header colors (used for collapsible headers, etc.)
+    style.Colors[ImGuiCol_Header]                = ImColor(50, 60, 80);
+    style.Colors[ImGuiCol_HeaderHovered]         = ImColor(70, 80, 100);
+    style.Colors[ImGuiCol_HeaderActive]          = ImColor(90, 100, 120);
+    
+    // Resize grip
+    style.Colors[ImGuiCol_ResizeGrip]            = ImColor(100, 100, 120, 64);
+    style.Colors[ImGuiCol_ResizeGripHovered]     = ImColor(120, 120, 140, 128);
+    style.Colors[ImGuiCol_ResizeGripActive]      = ImColor(140, 140, 160, 192);
+    
+    // Plot lines
+    style.Colors[ImGuiCol_PlotLines]             = ImColor(100, 200, 255);
+    style.Colors[ImGuiCol_PlotLinesHovered]      = ImColor(255, 160, 0);
+    style.Colors[ImGuiCol_PlotHistogram]         = ImColor(100, 200, 255);
+    style.Colors[ImGuiCol_PlotHistogramHovered]  = ImColor(255, 160, 0);
+    
+    // Text selection
+    style.Colors[ImGuiCol_TextSelectedBg]        = ImColor(50, 100, 150, 128);
+    
+    // Modal dimming
+    style.Colors[ImGuiCol_ModalWindowDimBg]      = ImColor(20, 20, 30, 192);
+    
+    // Tab colors with better contrast
+    style.Colors[ImGuiCol_Tab]                   = ImColor(30, 30, 40);
+    style.Colors[ImGuiCol_TabHovered]            = ImColor(60, 60, 80);
+    style.Colors[ImGuiCol_TabActive]             = ImColor(80, 90, 110);
+    style.Colors[ImGuiCol_TabUnfocused]          = ImColor(20, 20, 30);
+    style.Colors[ImGuiCol_TabUnfocusedActive]    = ImColor(40, 40, 50);
+    
+    // Add some glow effects for interactive elements
+    style.Colors[ImGuiCol_ButtonHovered]         = ImColor(80, 100, 140);
+    style.Colors[ImGuiCol_ButtonActive]          = ImColor(100, 120, 160);
+    style.Colors[ImGuiCol_HeaderHovered]         = ImColor(80, 100, 140);
+    style.Colors[ImGuiCol_HeaderActive]          = ImColor(100, 120, 160);
+    
+    // Add some transparency for a modern look
+    style.Alpha = 0.95f;
+    style.WindowRounding = 12.0f;
+}
