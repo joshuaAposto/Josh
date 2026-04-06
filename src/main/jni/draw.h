@@ -107,7 +107,7 @@ std::string GenerateSecuritySignature(const std::string& hwid) {
 
 std::string GetKeyGeneratorLink(const std::string& uuid) {
     std::string signature = GenerateSecuritySignature(uuid);
-    return std::string(oxorany("https://ryukobs-generator.up.railway.app/?hwid=")) + uuid + oxorany("&sig=") + signature;
+    return std::string(oxorany("https://bskey.vercel.app/?hwid=")) + uuid + oxorany("&signature=") + signature;
 }
 
 // NOTE: MemoryStruct and WriteMemoryCallback were removed here to fix the redefinition error.
@@ -134,7 +134,7 @@ bool VerifyKeyWithServer(const std::string& key, const std::string& uuid) {
         return false;
     }
 
-    std::string url = oxorany("https://ryukobs-generator.up.railway.app/verify?key=");
+    std::string url = oxorany("https://bskey.vercel.app/verify?key=");
     url += escaped_key;
     url += oxorany("&hwid=");
     url += escaped_uuid;
