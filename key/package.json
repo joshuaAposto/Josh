@@ -1,0 +1,22 @@
+{
+  "name": "sacredbs-vip-keysystem",
+  "version": "2.0.0",
+  "description": "SacRedBS VIP Key Management System",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [],
+  "author": "SacRedBS",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "axios": "^1.14.0",
+    "cors": "^2.8.6",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "mongoose": "^9.4.1",
+    "uuid": "^9.0.0"
+  }
+}
