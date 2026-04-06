@@ -1302,14 +1302,27 @@ void DrawMenu(ImGuiIO &io) {
         // ── SHIELD LOGO left ─────────────────────────────────────────────
         DrawShieldLogo(dl, ImVec2(winPos.x + 8 + logoSz * 0.5f, winPos.y + HDR_H * 0.5f), logoSz, t_now);
 
-        // ── TITLE ROW  (pure ImGui widgets — same path as working tab buttons) ─
+        // ── DRAG HANDLE (InvisibleButton spanning header between logo and close btn) ───
+        // Title is drawn via DrawList so it doesn't consume touch input — only the
+        // InvisibleButton below does, making the entire header area draggable.
         ImGui::SetWindowFontScale(0.90f);
         {
-            // Leave cursor below header, draw title inline using SameLine trick
-            ImGui::SetCursorPos(ImVec2(8 + logoSz + 6, (HDR_H - ImGui::GetTextLineHeight()) * 0.5f));
+            float dragX  = 8 + logoSz + 6;
+            float closeW = 68.0f; // close button area reserved on the right
+            float dragW  = ww - dragX - closeW - ImGui::GetStyle().ItemSpacing.x;
+            ImGui::SetCursorPos(ImVec2(dragX, 0));
+            ImGui::InvisibleButton("##hdr_drag", ImVec2(dragW, HDR_H));
+            if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+                ImVec2 delta = ImGui::GetMouseDelta();
+                ImGui::SetWindowPos(ImVec2(winPos.x + delta.x, winPos.y + delta.y));
+            }
+            // Draw title text ON the DrawList so it's purely visual (no input capture)
+            ImGui::SetWindowFontScale(0.90f);
+            float fh = ImGui::GetFontSize();
             int pr = (int)(220 + 35 * sinf(t_now * 2.5f));
             int pg = (int)(150 * fabsf(sinf(t_now * 1.3f)));
-            ImGui::TextColored(ImVec4(pr/255.0f, pg/255.0f, 0.04f, 1.0f), "%s", oxorany("SACREDBS VIP"));
+            dl->AddText(ImVec2(winPos.x + dragX, winPos.y + (HDR_H - fh) * 0.5f),
+                        IM_COL32(pr, pg, 10, 255), oxorany("SACREDBS VIP  :::  drag to move"));
         }
 
         // ── CLOSE BUTTON (top-right, pure ImGui Button) ──────────────────

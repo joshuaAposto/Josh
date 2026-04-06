@@ -343,6 +343,20 @@ app.post('/admin/delete', async (req, res) => {
     }
 });
 
+// Reset HWID binding — unbinds key from device so a new buyer can activate it
+app.post('/admin/reset-hwid', async (req, res) => {
+    if (!checkAdmin(req, res)) return;
+    try {
+        const { key } = req.body;
+        if (!key) return res.status(400).json({ error: 'key required' });
+        const rows = await sql`UPDATE keys SET hwid = NULL WHERE key_string = ${key} AND revoked = FALSE RETURNING key_string`;
+        if (!rows.length) return res.status(404).json({ error: 'Key not found or revoked' });
+        res.json({ success: true, message: 'HWID unbound — key can now be activated on a new device' });
+    } catch (e) {
+        res.status(500).json({ error: 'DB error' });
+    }
+});
+
 // Static files (after route handlers)
 app.use(express.static(path.join(__dirname, 'public')));
 

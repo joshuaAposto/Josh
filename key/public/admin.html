@@ -315,8 +315,9 @@ function renderTable(keys) {
       <td class="py-2 pr-2 text-slate-400">${expiryStr}</td>
       <td class="py-2 pr-2">${hwidShort}</td>
       <td class="py-2 pr-2"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${badgeCls}">${status.toUpperCase()}</span></td>
-      <td class="py-2 flex gap-1.5">
+      <td class="py-2 flex gap-1.5 flex-wrap">
         ${status !== 'revoked' ? `<button onclick="revokeKey('${k.key}')" class="btn-gold px-2 py-1 rounded text-[10px] text-white hover:opacity-80 transition">Revoke</button>` : ''}
+        ${k.activated ? `<button onclick="resetHwid('${k.key}')" class="bg-blue-900/60 border border-blue-700/60 px-2 py-1 rounded text-[10px] text-blue-300 hover:text-white hover:bg-blue-800 transition" title="Unbind device — lets a new buyer activate this key">Reset HWID</button>` : ''}
         <button onclick="deleteKey('${k.key}')" class="bg-slate-800 border border-slate-700 px-2 py-1 rounded text-[10px] text-slate-400 hover:text-red-400 hover:border-red-700 transition">Delete</button>
       </td>
     </tr>`;
@@ -333,6 +334,21 @@ async function deleteKey(key) {
   if (!confirm('Permanently delete key: ' + key + '?')) return;
   await fetch('/admin/delete', { method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}, body: JSON.stringify({key}) });
   loadKeys(); loadStats();
+}
+
+async function resetHwid(key) {
+  if (!confirm('Reset HWID for key: ' + key + '?\n\nThis unbinds the key from its current device so a new buyer can activate it.')) return;
+  const res = await fetch('/admin/reset-hwid', {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json', 'x-admin-password': adminPw },
+    body: JSON.stringify({ key })
+  });
+  const data = await res.json();
+  if (data.success) {
+    loadKeys();
+  } else {
+    alert('Error: ' + (data.error || 'Unknown error'));
+  }
 }
 
 function copyKey(key) {
