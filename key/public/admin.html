@@ -161,8 +161,25 @@
 </div>
 
 <script>
-let adminPw = '';
+let adminPw = localStorage.getItem('adminPw') || '';
 let allKeys = [];
+
+// ── AUTO-RESTORE SESSION ON LOAD ─────────
+window.addEventListener('DOMContentLoaded', async () => {
+  if (adminPw) {
+    const res = await fetch('/admin/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({password:adminPw}) });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById('login-overlay').classList.add('hidden');
+      document.getElementById('main-panel').classList.remove('hidden');
+      loadStats();
+      loadKeys();
+    } else {
+      localStorage.removeItem('adminPw');
+      adminPw = '';
+    }
+  }
+});
 
 // ── LOGIN ──────────────────────────────
 async function doLogin() {
@@ -171,6 +188,7 @@ async function doLogin() {
   const data = await res.json();
   if (data.success) {
     adminPw = pw;
+    localStorage.setItem('adminPw', pw);
     document.getElementById('login-overlay').classList.add('hidden');
     document.getElementById('main-panel').classList.remove('hidden');
     loadStats();
@@ -182,6 +200,7 @@ async function doLogin() {
 
 function logout() {
   adminPw = '';
+  localStorage.removeItem('adminPw');
   location.reload();
 }
 
