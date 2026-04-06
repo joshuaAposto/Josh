@@ -202,12 +202,17 @@ app.get('/verify', async (req, res) => {
             return res.json({ success: false, reason: 'Key expired' });
         }
 
+        // Compute days remaining
+        const msLeft       = Math.max(0, Number(found.expires_at) - Date.now());
+        const daysRemaining = Math.ceil(msLeft / 86400000);
+        const username      = found.username || 'USER';
+
         // VIP key — hwid is null (not yet activated) → bind this device
         if (!found.hwid) {
             // Remove any old free keys for this hwid first (clean slate)
             await sql`DELETE FROM keys WHERE hwid = ${hwid} AND key_string != ${key}`;
             await sql`UPDATE keys SET hwid = ${hwid} WHERE key_string = ${key}`;
-            return res.json({ success: true });
+            return res.json({ success: true, days_remaining: daysRemaining, username });
         }
 
         // Key already bound — check device matches
@@ -215,7 +220,7 @@ app.get('/verify', async (req, res) => {
             return res.json({ success: false, reason: 'Key bound to different device' });
         }
 
-        return res.json({ success: true });
+        return res.json({ success: true, days_remaining: daysRemaining, username });
 
     } catch (err) {
         console.error('verify error:', err.message || err);

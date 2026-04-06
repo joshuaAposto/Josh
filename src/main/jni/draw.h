@@ -50,6 +50,7 @@ static char user_input_key[64] = "";
 static char auth_status[256] = "Waiting for key..."; 
 static std::string cached_uuid = "";
 static int   vip_days_remaining = 0;
+static bool  vip_days_received  = false;
 static char  vip_username_str[64] = "";
 
 std::string getDeviceName() {
@@ -181,9 +182,11 @@ bool VerifyKeyWithServer(const std::string& key, const std::string& uuid) {
                     }
                     snprintf(auth_status, sizeof(auth_status), "Login Failed: %s", reason);
                 } else {
-                    // Parse days remaining and username from new API
-                    if (data.contains("days_remaining") && data["days_remaining"].is_number())
+                    // Parse days remaining and username from server response
+                    if (data.contains("days_remaining") && data["days_remaining"].is_number()) {
                         vip_days_remaining = data["days_remaining"].get<int>();
+                        vip_days_received  = true;
+                    }
                     if (data.contains("username") && data["username"].is_string()) {
                         std::string uname = data["username"].get<std::string>();
                         strncpy(vip_username_str, uname.c_str(), sizeof(vip_username_str) - 1);
@@ -1534,11 +1537,15 @@ void DrawMenu(ImGuiIO &io) {
                 }
                 ImGui::TextDisabled(oxorany("DAYS REMAINING:"));
                 ImGui::SameLine();
-                float dr = (float)vip_days_remaining;
-                ImVec4 daysColor = dr > 7 ? ImVec4(0.3f,1.0f,0.3f,1.0f)
-                                 : dr > 2 ? ImVec4(1.0f,0.7f,0.1f,1.0f)
-                                 :          ImVec4(1.0f,0.2f,0.2f,1.0f);
-                ImGui::TextColored(daysColor, "%d DAYS", vip_days_remaining);
+                if (vip_days_received) {
+                    float dr = (float)vip_days_remaining;
+                    ImVec4 daysColor = dr > 7 ? ImVec4(0.3f,1.0f,0.3f,1.0f)
+                                     : dr > 2 ? ImVec4(1.0f,0.7f,0.1f,1.0f)
+                                     :          ImVec4(1.0f,0.2f,0.2f,1.0f);
+                    ImGui::TextColored(daysColor, "%d DAYS", vip_days_remaining);
+                } else {
+                    ImGui::TextDisabled(oxorany("---"));
+                }
                 ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
 
                 ImGui::TextColored(themeColor, oxorany("ABOUT"));
