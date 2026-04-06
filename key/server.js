@@ -133,7 +133,7 @@ app.get('/checkpoint', async (req, res) => {
         const session = await Session.findOne({ sessionId: session_id });
         if (!session) return res.status(400).send("Session expired.");
 
-        const newKey = "RYUKO_" + crypto.randomBytes(4).toString('hex').toUpperCase();
+        const newKey = "SACRED_" + crypto.randomBytes(4).toString('hex').toUpperCase();
         const expiresAt = Date.now() + (24 * 60 * 60 * 1000);
 
         await Key.findOneAndUpdate(
