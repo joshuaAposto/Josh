@@ -15,7 +15,7 @@ const port = process.env.PORT || 3000;
 // ==========================================
 const DATABASE_URL      = 'postgresql://neondb_owner:npg_hkG8lf3zrLKF@ep-cool-silence-anfi0aab-pooler.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
 const LOOT_LINK_API_TOKEN = '22044aa0aad01a7297c21a339ae4243b50cd62d12e67e0e0d712c1d6ab3fcd4f';
-const LOOT_LINK_BASE_URL  = 'https://lootdest.org/s?muMuGbEY';
+const LOOT_LINK_BASE_URL  = 'https://lootdest.org/s?bp5wKORC';
 const YOUR_DOMAIN         = 'https://bskey.vercel.app';
 const SERVER_SECRET       = 'SJSIDIIDJEJRKRKRKKRDIIDIDKDKDKDKFKTJTJJFJFJJFFKFKKFKFKFKFIDIR';
 const ADMIN_PASSWORD      = 'joshua';
