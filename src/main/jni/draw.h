@@ -1313,7 +1313,7 @@ void DrawMenu(ImGuiIO &io) {
             ImGui::SetCursorPos(ImVec2(dragX, 0));
             ImGui::InvisibleButton("##hdr_drag", ImVec2(dragW, HDR_H));
             if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
-                ImVec2 delta = ImGui::GetMouseDelta();
+                ImVec2 delta = ImGui::GetIO().MouseDelta;
                 ImGui::SetWindowPos(ImVec2(winPos.x + delta.x, winPos.y + delta.y));
             }
             // Draw title text ON the DrawList so it's purely visual (no input capture)
