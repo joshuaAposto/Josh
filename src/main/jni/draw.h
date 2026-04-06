@@ -107,7 +107,7 @@ std::string GenerateSecuritySignature(const std::string& hwid) {
 
 std::string GetKeyGeneratorLink(const std::string& uuid) {
     std::string signature = GenerateSecuritySignature(uuid);
-    return std::string(oxorany("https://bskey.vercel.app/?hwid=")) + uuid + oxorany("&signature=") + signature;
+    return std::string(oxorany("https://ryukobs-generator.up.railway.app/?hwid=")) + uuid + oxorany("&sig=") + signature;
 }
 
 // NOTE: MemoryStruct and WriteMemoryCallback were removed here to fix the redefinition error.
@@ -134,7 +134,7 @@ bool VerifyKeyWithServer(const std::string& key, const std::string& uuid) {
         return false;
     }
 
-    std::string url = oxorany("https://bskey.vercel.app/verify?key=");
+    std::string url = oxorany("https://ryukobs-generator.up.railway.app/verify?key=");
     url += escaped_key;
     url += oxorany("&hwid=");
     url += escaped_uuid;
@@ -1135,9 +1135,10 @@ void DrawMenu(ImGuiIO &io) {
         if (cached_uuid.empty()) {
             cached_uuid = GetCleanUUID();
         }
+        std::string link = GetKeyGeneratorLink(cached_uuid);
 
-        ImGui::SetNextWindowSizeConstraints(ImVec2(380, 340), ImVec2(io.DisplaySize.x * 0.95f, io.DisplaySize.y * 0.9f));
-        ImGui::SetNextWindowSize(ImVec2(480, 380), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSizeConstraints(ImVec2(400, 420), ImVec2(io.DisplaySize.x * 0.95f, io.DisplaySize.y * 0.9f));
+        ImGui::SetNextWindowSize(ImVec2(520, 460), ImGuiCond_FirstUseEver);
         
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(20.0f, 20.0f));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 8.0f);
@@ -1171,22 +1172,32 @@ void DrawMenu(ImGuiIO &io) {
 
             ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
 
-            // Key info hint
-            ImGui::TextColored(accentColor, oxorany("ENTER YOUR VIP KEY"));
-            ImGui::SetWindowFontScale(0.75f);
-            ImGui::TextDisabled(oxorany("Contact admin/reseller to get your key"));
-            ImGui::SetWindowFontScale(1.0f);
-            ImGui::Spacing();
-            
+            ImGui::TextColored(themeColor, oxorany("STEP 1: GET YOUR FREE 1DAY KEY"));
+
+            float halfW = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x) * 0.5f;
+            if (ImGui::Button(oxorany("OPEN IN BROWSER"), ImVec2(halfW, 45))) {
+                OpenBrowserWithUrl(link);
+                snprintf(auth_status, sizeof(auth_status), oxorany("Opening browser..."));
+            }
+            ImGui::SameLine();
+            if (ImGui::Button(oxorany("COPY LINK"), ImVec2(halfW, 45))) {
+                CopyLinkToClipboard(link);
+                snprintf(auth_status, sizeof(auth_status), oxorany("Link Copied! Paste in browser."));
+            }
+
+            ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
+
+            ImGui::TextColored(themeColor, oxorany("STEP 2: LOGIN"));
+
             ImGui::PushItemWidth(-1);
-            if (ImGui::InputTextWithHint("##keyinput", oxorany("Paste your key here..."), user_input_key, IM_ARRAYSIZE(user_input_key))) {
+            if (ImGui::InputTextWithHint("##keyinput", oxorany("click PASTE..."), user_input_key, IM_ARRAYSIZE(user_input_key))) {
                 ShowSoftKeyboardInput();
             }
             ImGui::PopItemWidth();
 
             ImGui::Spacing();
             
-            if (ImGui::Button(oxorany("PASTE FROM CLIPBOARD"), ImVec2(-1, 38))) {
+            if (ImGui::Button(oxorany("PASTE KEY FROM CLIPBOARD"), ImVec2(-1, 40))) {
                 std::string clip = getClipboard(); 
                 if (!clip.empty()) {
                     strncpy(user_input_key, clip.c_str(), IM_ARRAYSIZE(user_input_key) - 1);
