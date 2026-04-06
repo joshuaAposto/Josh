@@ -48,8 +48,9 @@ async function initDb() {
             created_at  BIGINT
         )
     `;
+    // Ensure no hwid unique constraint exists (allows VIP + free keys for same device)
     try {
-        await sql`ALTER TABLE keys ADD CONSTRAINT keys_hwid_unique UNIQUE (hwid)`;
+        await sql`ALTER TABLE keys DROP CONSTRAINT IF EXISTS keys_hwid_unique`;
     } catch (_) {}
 }
 initDb().catch(err => console.error('initDb error:', err.message));
@@ -203,6 +204,8 @@ app.get('/verify', async (req, res) => {
 
         // VIP key — hwid is null (not yet activated) → bind this device
         if (!found.hwid) {
+            // Remove any old free keys for this hwid first (clean slate)
+            await sql`DELETE FROM keys WHERE hwid = ${hwid} AND key_string != ${key}`;
             await sql`UPDATE keys SET hwid = ${hwid} WHERE key_string = ${key}`;
             return res.json({ success: true });
         }
