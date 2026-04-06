@@ -13,9 +13,9 @@ const port = process.env.PORT || 3000;
 // ==========================================
 // Configuration (hardcoded)
 // ==========================================
-const DATABASE_URL      = 'postgresql://neondb_owner:npg_hkG8lf3zrLKF@ep-cool-silence-anfi0aab-pooler.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
+const DATABASE_URL        = 'postgresql://neondb_owner:npg_hkG8lf3zrLKF@ep-cool-silence-anfi0aab-pooler.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
 const LOOT_LINK_API_TOKEN = '22044aa0aad01a7297c21a339ae4243b50cd62d12e67e0e0d712c1d6ab3fcd4f';
-const LOOT_LINK_BASE_URL  = 'https://lootdest.org/s?bp5wKORC';
+const LOOT_LINK_BASE_URL  = 'https://lootdest.org/s?muMuGbEY';
 const YOUR_DOMAIN         = 'https://bskey.vercel.app';
 const SERVER_SECRET       = 'SJSIDIIDJEJRKRKRKKRDIIDIDKDKDKDKFKTJTJJFJFJJFFKFKKFKFKFKFIDIR';
 const ADMIN_PASSWORD      = 'joshua';
@@ -23,9 +23,10 @@ const ADMIN_PASSWORD      = 'joshua';
 const sql = neon(DATABASE_URL);
 
 // ==========================================
-// Init DB tables
+// Init DB — create tables + fix constraints
 // ==========================================
 async function initDb() {
+    // Sessions table
     await sql`
         CREATE TABLE IF NOT EXISTS sessions (
             session_id  VARCHAR(64)  PRIMARY KEY,
@@ -34,15 +35,27 @@ async function initDb() {
             created_at  BIGINT       NOT NULL
         )
     `;
+
+    // Keys table (compatible with existing schema)
     await sql`
         CREATE TABLE IF NOT EXISTS keys (
             id          SERIAL       PRIMARY KEY,
             key_string  VARCHAR(64)  UNIQUE NOT NULL,
-            hwid        VARCHAR(256) UNIQUE NOT NULL,
+            hwid        VARCHAR(256),
             ip_address  VARCHAR(64),
-            expires_at  BIGINT       NOT NULL
+            expires_at  BIGINT       NOT NULL,
+            username    VARCHAR(64)  DEFAULT 'FREE_1DAY',
+            revoked     BOOLEAN      DEFAULT FALSE,
+            created_at  BIGINT
         )
     `;
+
+    // Add UNIQUE constraint on hwid if it doesn't exist yet
+    try {
+        await sql`ALTER TABLE keys ADD CONSTRAINT keys_hwid_unique UNIQUE (hwid)`;
+    } catch (_) {
+        // Constraint already exists — ignore
+    }
 }
 initDb().catch(err => console.error('initDb error:', err.message));
 
@@ -87,10 +100,12 @@ app.get('/generateKey', generateLimiter, verifySignature, async (req, res) => {
     const clientIp = getClientIp(req);
 
     try {
-        // Return existing valid key for this HWID
+        // Return existing valid non-revoked key for this HWID
         const existing = await sql`
             SELECT key_string FROM keys
-            WHERE hwid = ${hwid} AND expires_at > ${now}
+            WHERE hwid = ${hwid}
+              AND expires_at > ${now}
+              AND (revoked = false OR revoked IS NULL)
             LIMIT 1
         `;
         if (existing.length > 0) {
@@ -102,9 +117,10 @@ app.get('/generateKey', generateLimiter, verifySignature, async (req, res) => {
         await sql`
             INSERT INTO sessions (session_id, hwid, user_ip, created_at)
             VALUES (${sessionId}, ${hwid}, ${clientIp}, ${now})
+            ON CONFLICT (session_id) DO NOTHING
         `;
 
-        // Call LootLabs API
+        // Call LootLabs API to get encrypted ad link
         const checkpointUrl  = `${YOUR_DOMAIN}/checkpoint?session_id=${sessionId}`;
         const lootLabsApiUrl = `https://creators.lootlabs.gg/api/public/url_encryptor?destination_url=${encodeURIComponent(checkpointUrl)}&api_token=${LOOT_LINK_API_TOKEN}`;
 
@@ -137,20 +153,19 @@ app.get('/checkpoint', async (req, res) => {
         const rows = await sql`
             SELECT * FROM sessions WHERE session_id = ${session_id} LIMIT 1
         `;
-        if (rows.length === 0) return res.status(400).send('Session expired. Please go back and try again.');
+        if (rows.length === 0) {
+            return res.status(400).send('Session expired. Please go back and try again.');
+        }
 
         const session   = rows[0];
         const newKey    = 'SACRED_' + crypto.randomBytes(4).toString('hex').toUpperCase();
         const expiresAt = Date.now() + (24 * 60 * 60 * 1000); // 24 hours
 
-        // Upsert: one key per HWID
+        // Delete old key for this HWID then insert new one (safe, no UNIQUE conflict needed)
+        await sql`DELETE FROM keys WHERE hwid = ${session.hwid}`;
         await sql`
-            INSERT INTO keys (key_string, hwid, ip_address, expires_at)
-            VALUES (${newKey}, ${session.hwid}, ${session.user_ip}, ${expiresAt})
-            ON CONFLICT (hwid) DO UPDATE
-                SET key_string = EXCLUDED.key_string,
-                    ip_address = EXCLUDED.ip_address,
-                    expires_at = EXCLUDED.expires_at
+            INSERT INTO keys (key_string, hwid, ip_address, expires_at, username, revoked, created_at)
+            VALUES (${newKey}, ${session.hwid}, ${session.user_ip}, ${expiresAt}, 'FREE_1DAY', false, ${Date.now()})
         `;
 
         await sql`DELETE FROM sessions WHERE session_id = ${session_id}`;
@@ -170,9 +185,13 @@ app.get('/verify', async (req, res) => {
 
     try {
         const rows = await sql`
-            SELECT * FROM keys WHERE key_string = ${key} AND hwid = ${hwid} LIMIT 1
+            SELECT * FROM keys
+            WHERE key_string = ${key}
+              AND hwid = ${hwid}
+              AND (revoked = false OR revoked IS NULL)
+            LIMIT 1
         `;
-        if (rows.length > 0 && Date.now() < rows[0].expires_at) {
+        if (rows.length > 0 && Date.now() < Number(rows[0].expires_at)) {
             return res.json({ success: true });
         }
         const reason = rows.length === 0 ? 'Invalid key or wrong device' : 'Key expired';
@@ -197,10 +216,10 @@ app.get('/admin/keys', async (req, res) => {
         const now  = Date.now();
         return res.json(keys.map(k => ({
             key:     k.key_string,
-            hwid:    k.hwid,
+            hwid:    k.hwid || 'Not activated',
             ip:      k.ip_address,
             expires: new Date(Number(k.expires_at)).toISOString(),
-            active:  Number(k.expires_at) > now
+            active:  Number(k.expires_at) > now && !k.revoked
         })));
     } catch (e) {
         return res.status(500).json({ error: 'DB error' });
@@ -213,14 +232,14 @@ app.delete('/admin/keys/:key', async (req, res) => {
     if (password !== ADMIN_PASSWORD) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
-        await sql`DELETE FROM keys WHERE key_string = ${req.params.key}`;
+        await sql`UPDATE keys SET revoked = true WHERE key_string = ${req.params.key}`;
         return res.json({ success: true });
     } catch (e) {
         return res.status(500).json({ error: 'DB error' });
     }
 });
 
-// Static files (after route handlers so / isn't hijacked when no params)
+// Static files (after route handlers)
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ==========================================
