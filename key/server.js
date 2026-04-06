@@ -103,16 +103,17 @@ app.get('/', generateLimiter, (req, res) => {
     return res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Step 2: User taps GENERATE KEY → create session → LootLabs ad
+// Step 2: User taps GENERATE KEY → create session → return LootLabs ad URL as JSON
 app.get('/generateKey', generateLimiter, async (req, res) => {
     const { hwid, signature } = req.query;
-    if (!hwid || !signature) return res.status(403).send('Missing Security Parameters.');
-    if (!verifySignature(hwid, signature)) return res.status(403).send('Bypass Attempt Detected.');
+    if (!hwid || !signature) return res.json({ error: 'Missing Security Parameters.' });
+    if (!verifySignature(hwid, signature)) return res.json({ error: 'Bypass Attempt Detected.' });
 
     const now      = Date.now();
     const clientIp = getClientIp(req);
 
     try {
+        // Return existing valid key immediately
         const existing = await sql`
             SELECT key_string FROM keys
             WHERE hwid = ${hwid}
@@ -121,9 +122,10 @@ app.get('/generateKey', generateLimiter, async (req, res) => {
             LIMIT 1
         `;
         if (existing.length > 0) {
-            return res.redirect(`/?generated_key=${existing[0].key_string}&success=true`);
+            return res.json({ redirect: `/?generated_key=${existing[0].key_string}&success=true` });
         }
 
+        // Create session
         const sessionId = uuidv4();
         await sql`
             INSERT INTO sessions (session_id, hwid, user_ip, created_at)
@@ -131,20 +133,21 @@ app.get('/generateKey', generateLimiter, async (req, res) => {
             ON CONFLICT (session_id) DO NOTHING
         `;
 
+        // Get LootLabs encrypted link
         const checkpointUrl  = `${YOUR_DOMAIN}/checkpoint?session_id=${sessionId}`;
         const lootLabsApiUrl = `https://creators.lootlabs.gg/api/public/url_encryptor?destination_url=${encodeURIComponent(checkpointUrl)}&api_token=${LOOT_LINK_API_TOKEN}`;
 
-        const lootRes = await axios.get(lootLabsApiUrl, { timeout: 10000 });
+        const lootRes = await axios.get(lootLabsApiUrl, { timeout: 12000 });
         if (lootRes.data && lootRes.data.message) {
-            return res.redirect(`${LOOT_LINK_BASE_URL}&data=${lootRes.data.message}`);
+            return res.json({ redirect: `${LOOT_LINK_BASE_URL}&data=${lootRes.data.message}` });
         }
 
         console.error('LootLabs bad response:', JSON.stringify(lootRes.data));
-        return res.status(500).send('Ad link generation failed. Please try again.');
+        return res.json({ error: 'Ad link generation failed. Please try again.' });
 
     } catch (err) {
         console.error('generateKey error:', err.message || err);
-        return res.status(500).send('Error generating session. Please try again later.');
+        return res.json({ error: 'Server timeout. Please try again.' });
     }
 });
 
