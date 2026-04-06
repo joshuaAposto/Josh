@@ -1,5 +1,5 @@
 const express = require('express');
-const mongoose = require('mongoose');
+const { neon } = require('@neondatabase/serverless');
 const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
@@ -11,49 +11,40 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // ==========================================
-// Configuration & Secrets
+// Configuration (hardcoded)
 // ==========================================
-const LOOT_LINK_API_TOKEN = "ba72281d3b361f5c42095b784e1559941d5730982a47c6701f122707afe57234";
-const LOOT_LINK_BASE_URL  = "https://lootdest.org/s?tEV6Qcgt";
-const YOUR_DOMAIN         = "https://bskey.vercel.app";
-const SERVER_SECRET       = "SJSIDIIDJEJRKRKRKKRDIIDIDKDKDKDKFKTJTJJFJFJJFFKFKKFKFKFKFIDIR";
-const ADMIN_PASSWORD      = "joshua";
-const mongoURI            = "mongodb+srv://ryukodevv:09090577409@cluster0.6ophm4c.mongodb.net/?appName=Cluster0";
+const DATABASE_URL      = 'postgresql://neondb_owner:npg_hkG8lf3zrLKF@ep-cool-silence-anfi0aab-pooler.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
+const LOOT_LINK_API_TOKEN = 'ba72281d3b361f5c42095b784e1559941d5730982a47c6701f122707afe57234';
+const LOOT_LINK_BASE_URL  = 'https://lootdest.org/s?tEV6Qcgt';
+const YOUR_DOMAIN         = 'https://bskey.vercel.app';
+const SERVER_SECRET       = 'SJSIDIIDJEJRKRKRKKRDIIDIDKDKDKDKFKTJTJJFJFJJFFKFKKFKFKFKFIDIR';
+const ADMIN_PASSWORD      = 'joshua';
+
+const sql = neon(DATABASE_URL);
 
 // ==========================================
-// Lazy MongoDB connection (Vercel serverless safe)
+// Init DB tables
 // ==========================================
-let cachedConn = null;
-
-async function dbConnect() {
-    if (cachedConn && mongoose.connection.readyState === 1) return cachedConn;
-    cachedConn = await mongoose.connect(mongoURI, {
-        serverSelectionTimeoutMS: 10000,
-        socketTimeoutMS: 45000,
-    });
-    console.log('MongoDB connected');
-    return cachedConn;
+async function initDb() {
+    await sql`
+        CREATE TABLE IF NOT EXISTS sessions (
+            session_id  VARCHAR(64)  PRIMARY KEY,
+            hwid        VARCHAR(256) NOT NULL,
+            user_ip     VARCHAR(64),
+            created_at  BIGINT       NOT NULL
+        )
+    `;
+    await sql`
+        CREATE TABLE IF NOT EXISTS keys (
+            id          SERIAL       PRIMARY KEY,
+            key_string  VARCHAR(64)  UNIQUE NOT NULL,
+            hwid        VARCHAR(256) UNIQUE NOT NULL,
+            ip_address  VARCHAR(64),
+            expires_at  BIGINT       NOT NULL
+        )
+    `;
 }
-
-// ==========================================
-// Schemas & Models
-// ==========================================
-const sessionSchema = new mongoose.Schema({
-    sessionId: { type: String, required: true, unique: true },
-    hwid:      { type: String, required: true },
-    userIp:    { type: String },
-    createdAt: { type: Number, required: true }
-});
-
-const keySchema = new mongoose.Schema({
-    keyString:  { type: String, required: true, unique: true },
-    hwid:       { type: String, required: true, unique: true },
-    ipAddress:  { type: String, required: true },
-    expiresAt:  { type: Number, required: true }
-});
-
-const Session = mongoose.models.Session || mongoose.model('Session', sessionSchema);
-const Key     = mongoose.models.Key     || mongoose.model('Key',     keySchema);
+initDb().catch(err => console.error('initDb error:', err.message));
 
 // ==========================================
 // Middlewares
@@ -69,15 +60,15 @@ const generateLimiter = rateLimit({
 
 const verifySignature = (req, res, next) => {
     const { hwid, signature } = req.query;
-    if (!hwid || !signature) return res.status(403).send("Missing Security Parameters.");
-    const expectedHash = crypto.createHash('md5').update('hwid=' + hwid + SERVER_SECRET).digest('hex');
-    if (signature !== expectedHash) return res.status(403).send("Bypass Attempt Detected.");
+    if (!hwid || !signature) return res.status(403).send('Missing Security Parameters.');
+    const expected = crypto.createHash('md5').update('hwid=' + hwid + SERVER_SECRET).digest('hex');
+    if (signature !== expected) return res.status(403).send('Bypass Attempt Detected.');
     next();
 };
 
 function getClientIp(req) {
-    const forwarded = req.headers['x-forwarded-for'];
-    return forwarded ? forwarded.split(',')[0].trim() : (req.socket?.remoteAddress || '0.0.0.0');
+    const fwd = req.headers['x-forwarded-for'];
+    return fwd ? fwd.split(',')[0].trim() : (req.socket?.remoteAddress || '0.0.0.0');
 }
 
 // ==========================================
@@ -85,30 +76,35 @@ function getClientIp(req) {
 // ==========================================
 
 // Step 1: Mod menu opens /?hwid=X&signature=S → show landing page
-app.get('/', generateLimiter, verifySignature, async (req, res) => {
+app.get('/', generateLimiter, verifySignature, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Step 2: User taps GENERATE KEY → create session → redirect to LootLabs
+// Step 2: User taps GENERATE KEY → create session → LootLabs ad
 app.get('/generateKey', generateLimiter, verifySignature, async (req, res) => {
     const { hwid } = req.query;
     const now      = Date.now();
     const clientIp = getClientIp(req);
 
     try {
-        await dbConnect();
-
         // Return existing valid key for this HWID
-        const existingKey = await Key.findOne({ hwid, expiresAt: { $gt: now } });
-        if (existingKey) {
-            return res.redirect(`/?generated_key=${existingKey.keyString}&success=true`);
+        const existing = await sql`
+            SELECT key_string FROM keys
+            WHERE hwid = ${hwid} AND expires_at > ${now}
+            LIMIT 1
+        `;
+        if (existing.length > 0) {
+            return res.redirect(`/?generated_key=${existing[0].key_string}&success=true`);
         }
 
         // Create session
         const sessionId = uuidv4();
-        await Session.create({ sessionId, hwid, userIp: clientIp, createdAt: now });
+        await sql`
+            INSERT INTO sessions (session_id, hwid, user_ip, created_at)
+            VALUES (${sessionId}, ${hwid}, ${clientIp}, ${now})
+        `;
 
-        // Call LootLabs API to get encrypted ad link
+        // Call LootLabs API
         const checkpointUrl  = `${YOUR_DOMAIN}/checkpoint?session_id=${sessionId}`;
         const lootLabsApiUrl = `https://creators.lootlabs.gg/api/public/url_encryptor?destination_url=${encodeURIComponent(checkpointUrl)}&api_token=${LOOT_LINK_API_TOKEN}`;
 
@@ -119,48 +115,51 @@ app.get('/generateKey', generateLimiter, verifySignature, async (req, res) => {
         }
 
         console.error('LootLabs bad response:', JSON.stringify(lootRes.data));
-        return res.status(500).send("Ad link generation failed. Please try again.");
+        return res.status(500).send('Ad link generation failed. Please try again.');
 
     } catch (err) {
         console.error('generateKey error:', err.message || err);
-        return res.status(500).send("Error generating session. Please try again later.");
+        return res.status(500).send('Error generating session. Please try again later.');
     }
 });
 
 // Step 3: LootLabs redirects here after ad → create key
 app.get('/checkpoint', async (req, res) => {
     const { session_id } = req.query;
-    const referer = req.headers.referer || "";
+    const referer = req.headers.referer || '';
 
-    const allowedReferers = ["loot-link.com", "lootlabs.gg", "lootdest.org"];
-    const isValidReferer = allowedReferers.some(r => referer.includes(r));
-    if (!isValidReferer) {
-        return res.status(403).send("Direct access is forbidden.");
+    const validReferers = ['loot-link.com', 'lootlabs.gg', 'lootdest.org'];
+    if (!validReferers.some(r => referer.includes(r))) {
+        return res.status(403).send('Direct access is forbidden.');
     }
 
     try {
-        await dbConnect();
+        const rows = await sql`
+            SELECT * FROM sessions WHERE session_id = ${session_id} LIMIT 1
+        `;
+        if (rows.length === 0) return res.status(400).send('Session expired. Please go back and try again.');
 
-        const session = await Session.findOne({ sessionId: session_id });
-        if (!session) return res.status(400).send("Session expired. Please go back and try again.");
-
-        const newKey   = "SACRED_" + crypto.randomBytes(4).toString('hex').toUpperCase();
+        const session   = rows[0];
+        const newKey    = 'SACRED_' + crypto.randomBytes(4).toString('hex').toUpperCase();
         const expiresAt = Date.now() + (24 * 60 * 60 * 1000); // 24 hours
 
-        // Upsert: one key per HWID (replaces old expired key)
-        await Key.findOneAndUpdate(
-            { hwid: session.hwid },
-            { keyString: newKey, ipAddress: session.userIp, expiresAt },
-            { upsert: true, new: true }
-        );
+        // Upsert: one key per HWID
+        await sql`
+            INSERT INTO keys (key_string, hwid, ip_address, expires_at)
+            VALUES (${newKey}, ${session.hwid}, ${session.user_ip}, ${expiresAt})
+            ON CONFLICT (hwid) DO UPDATE
+                SET key_string = EXCLUDED.key_string,
+                    ip_address = EXCLUDED.ip_address,
+                    expires_at = EXCLUDED.expires_at
+        `;
 
-        await Session.deleteOne({ sessionId: session_id });
+        await sql`DELETE FROM sessions WHERE session_id = ${session_id}`;
 
         return res.redirect(`/?generated_key=${newKey}&success=true`);
 
     } catch (err) {
         console.error('checkpoint error:', err.message || err);
-        return res.status(500).send("Verification failed. Please try again.");
+        return res.status(500).send('Verification failed. Please try again.');
     }
 });
 
@@ -170,16 +169,13 @@ app.get('/verify', async (req, res) => {
     if (!key || !hwid) return res.json({ success: false, reason: 'Missing params' });
 
     try {
-        await dbConnect();
-
-        const foundKey = await Key.findOne({ keyString: key, hwid });
-        if (foundKey && Date.now() < foundKey.expiresAt) {
+        const rows = await sql`
+            SELECT * FROM keys WHERE key_string = ${key} AND hwid = ${hwid} LIMIT 1
+        `;
+        if (rows.length > 0 && Date.now() < rows[0].expires_at) {
             return res.json({ success: true });
         }
-
-        const reason = !foundKey
-            ? 'Invalid key or wrong device'
-            : 'Key expired';
+        const reason = rows.length === 0 ? 'Invalid key or wrong device' : 'Key expired';
         return res.json({ success: false, reason });
 
     } catch (err) {
@@ -197,15 +193,14 @@ app.get('/admin/keys', async (req, res) => {
     if (password !== ADMIN_PASSWORD) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
-        await dbConnect();
-        const keys = await Key.find().sort({ expiresAt: -1 });
+        const keys = await sql`SELECT * FROM keys ORDER BY expires_at DESC`;
         const now  = Date.now();
         return res.json(keys.map(k => ({
-            key:       k.keyString,
-            hwid:      k.hwid,
-            ip:        k.ipAddress,
-            expires:   new Date(k.expiresAt).toISOString(),
-            active:    k.expiresAt > now
+            key:     k.key_string,
+            hwid:    k.hwid,
+            ip:      k.ip_address,
+            expires: new Date(Number(k.expires_at)).toISOString(),
+            active:  Number(k.expires_at) > now
         })));
     } catch (e) {
         return res.status(500).json({ error: 'DB error' });
@@ -218,19 +213,18 @@ app.delete('/admin/keys/:key', async (req, res) => {
     if (password !== ADMIN_PASSWORD) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
-        await dbConnect();
-        await Key.deleteOne({ keyString: req.params.key });
+        await sql`DELETE FROM keys WHERE key_string = ${req.params.key}`;
         return res.json({ success: true });
     } catch (e) {
         return res.status(500).json({ error: 'DB error' });
     }
 });
 
-// Static files (after route handlers so / isn't hijacked)
+// Static files (after route handlers so / isn't hijacked when no params)
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ==========================================
-// Start (local dev only — Vercel ignores this)
+// Start (local only — Vercel uses module.exports)
 // ==========================================
 if (process.env.NODE_ENV !== 'production') {
     app.listen(port, () => console.log(`Server running on port ${port}`));
