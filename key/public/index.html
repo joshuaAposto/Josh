@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SacRedBS VIP — Bloodstrike Mod Menu</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body {
+    background: #0a0a0f;
+    background-image: radial-gradient(circle at 20% 50%, rgba(180,20,20,0.10), transparent 40%),
+                      radial-gradient(circle at 80% 20%, rgba(220,100,0,0.06), transparent 35%);
+    font-family: 'Segoe UI', sans-serif;
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .card { background: rgba(14,4,4,0.96); border: 1px solid rgba(180,20,20,0.30); }
+  .glow { box-shadow: 0 0 40px rgba(200,20,20,0.18); }
+  @keyframes pulse-glow { 0%,100%{box-shadow:0 0 8px rgba(220,38,38,0.5)} 50%{box-shadow:0 0 24px rgba(220,38,38,0.9)} }
+  .shield { animation: pulse-glow 2.5s ease-in-out infinite; }
+</style>
+</head>
+<body class="text-slate-200">
+  <div class="card glow rounded-3xl p-8 sm:p-12 w-[92%] max-w-md text-center">
+
+    <!-- Shield Logo -->
+    <div class="mb-6 flex justify-center">
+      <div class="shield w-20 h-20 bg-gradient-to-b from-red-700 to-red-900 rounded-2xl flex items-center justify-center border border-red-500/40 text-4xl font-black text-yellow-300">
+        S
+      </div>
+    </div>
+
+    <h1 class="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-yellow-400 mb-1">
+      SacRedBS VIP
+    </h1>
+    <p class="text-xs font-semibold uppercase tracking-[0.3em] text-red-800/80 mb-8">
+      Bloodstrike Mod Menu
+    </p>
+
+    <!-- Status card -->
+    <div id="status-box" class="bg-black/40 rounded-xl p-5 mb-6 border border-red-900/30">
+      <p id="status-msg" class="text-slate-400 text-sm">Verifying your session...</p>
+    </div>
+
+    <!-- Key display (after verify) -->
+    <div id="key-box" class="hidden mb-6">
+      <p class="text-xs text-slate-500 mb-2">Your generated key (tap to copy):</p>
+      <div onclick="copyKey()" class="cursor-pointer bg-black/60 border border-yellow-600/40 rounded-xl p-4 group">
+        <code id="key-display" class="font-mono text-yellow-300 text-base break-all group-hover:text-yellow-200 transition"></code>
+      </div>
+      <p id="copy-hint" class="text-[10px] text-slate-600 mt-2">Tap to copy</p>
+    </div>
+
+    <p class="text-xs text-slate-600 mt-4">
+      Keys are issued by admin only.<br>
+      Contact your reseller or admin for access.
+    </p>
+  </div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const generated = params.get('generated_key');
+const msg       = document.getElementById('status-msg');
+const keyBox    = document.getElementById('key-box');
+
+if (generated) {
+  msg.textContent = '✓ Key generated successfully!';
+  msg.classList.add('text-green-400');
+  keyBox.classList.remove('hidden');
+  document.getElementById('key-display').textContent = generated;
+} else {
+  msg.textContent = 'This page is for the mod menu key system.';
+}
+
+function copyKey() {
+  const k = document.getElementById('key-display').textContent;
+  navigator.clipboard.writeText(k).then(() => {
+    const h = document.getElementById('copy-hint');
+    h.textContent = '✓ Copied!';
+    h.classList.add('text-green-400');
+    setTimeout(() => { h.textContent = 'Tap to copy'; h.classList.remove('text-green-400'); }, 2000);
+  });
+}
+</script>
+</body>
+</html>
