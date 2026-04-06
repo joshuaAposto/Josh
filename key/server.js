@@ -206,23 +206,20 @@ app.get('/verify', async (req, res) => {
         }
 
         // Compute days remaining
-        const msLeft       = Math.max(0, Number(found.expires_at) - Date.now());
+        const msLeft        = Math.max(0, Number(found.expires_at) - Date.now());
         const daysRemaining = Math.ceil(msLeft / 86400000);
         const username      = found.username || 'USER';
+        const isFreeKey     = found.username === 'FREE_1DAY';
 
-        // VIP key — hwid is null (not yet activated) → bind this device
-        if (!found.hwid) {
-            // Remove any old free keys for this hwid first (clean slate)
-            await sql`DELETE FROM keys WHERE hwid = ${hwid} AND key_string != ${key}`;
-            await sql`UPDATE keys SET hwid = ${hwid} WHERE key_string = ${key}`;
+        if (isFreeKey) {
+            // FREE key: device-locked — must match the hwid it was generated for
+            if (found.hwid && found.hwid !== hwid) {
+                return res.json({ success: false, reason: 'This free key was generated for a different device. Get your own at bskey.vercel.app' });
+            }
             return res.json({ success: true, days_remaining: daysRemaining, username });
         }
 
-        // Key already bound — check device matches
-        if (found.hwid !== hwid) {
-            return res.json({ success: false, reason: 'Key bound to different device' });
-        }
-
+        // VIP key: NO device binding — any phone/device can use it freely
         return res.json({ success: true, days_remaining: daysRemaining, username });
 
     } catch (err) {

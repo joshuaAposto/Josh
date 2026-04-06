@@ -294,13 +294,16 @@ function renderTable(keys) {
     return;
   }
   tbody.innerHTML = keys.map(k => {
+    const isVip = k.username && k.username !== 'FREE_1DAY';
     const status = k.revoked ? 'revoked'
                  : k.expired ? 'expired'
-                 : !k.activated ? 'unused'
+                 : (!k.activated && !isVip) ? 'unused'
                  : 'active';
     const badgeCls = { active:'badge-active', expired:'badge-expired', revoked:'badge-revoked', unused:'badge-unused' }[status];
     const expiryStr = k.expiresAt ? new Date(k.expiresAt).toLocaleDateString() : '—';
-    const hwidShort = !k.hwid
+    const hwidShort = isVip
+                    ? '<span class="text-[10px] text-blue-400 font-semibold">ANY DEVICE</span>'
+                    : !k.hwid
                     ? '<span class="text-slate-600">—</span>'
                     : `<span class="text-[10px] text-slate-400 font-mono">${String(k.hwid).substring(0,12)}…</span>`;
     return `
@@ -317,7 +320,7 @@ function renderTable(keys) {
       <td class="py-2 pr-2"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${badgeCls}">${status.toUpperCase()}</span></td>
       <td class="py-2 flex gap-1.5 flex-wrap">
         ${status !== 'revoked' ? `<button onclick="revokeKey('${k.key}')" class="btn-gold px-2 py-1 rounded text-[10px] text-white hover:opacity-80 transition">Revoke</button>` : ''}
-        ${k.activated ? `<button onclick="resetHwid('${k.key}')" class="bg-blue-900/60 border border-blue-700/60 px-2 py-1 rounded text-[10px] text-blue-300 hover:text-white hover:bg-blue-800 transition" title="Unbind device — lets a new buyer activate this key">Reset HWID</button>` : ''}
+        ${(!isVip && k.activated) ? `<button onclick="resetHwid('${k.key}')" class="bg-blue-900/60 border border-blue-700/60 px-2 py-1 rounded text-[10px] text-blue-300 hover:text-white hover:bg-blue-800 transition" title="Unbind device — lets a different device use this free key">Reset HWID</button>` : ''}
         <button onclick="deleteKey('${k.key}')" class="bg-slate-800 border border-slate-700 px-2 py-1 rounded text-[10px] text-slate-400 hover:text-red-400 hover:border-red-700 transition">Delete</button>
       </td>
     </tr>`;
