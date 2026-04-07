@@ -1,15 +1,9 @@
-require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 const path = require('path');
 
-const TOKEN = process.env.BOT_TOKEN;
-const ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(id => parseInt(id.trim())).filter(Boolean);
-
-if (!TOKEN) {
-    console.error('ERROR: BOT_TOKEN is not set in your .env file.');
-    process.exit(1);
-}
+const TOKEN = '8435692186:AAHBVwYMLpjbKOmH0Mqr61micneO89Lqn8A';
+const ADMIN_IDS = [7852634111];
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
