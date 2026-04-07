@@ -54,8 +54,8 @@ static std::map<std::string, bool> sync_bool = {
     {"bNoShake", false},  
     {"bNoSpread", false},
     {"bFeature1", false},
-	{"bDrawBulletLine", false},
-//	    {"bESP_Grenade", false},            // toggle grenade alert
+        {"bDrawBulletLine", false},
+//          {"bESP_Grenade", false},            // toggle grenade alert
   //  {"bESP_AlertOnlyOffscreen", false}, // kalau mau tampilkan hanya saat offscreen (opsional)
 
 };
@@ -91,7 +91,7 @@ static std::map<std::string, int> sync_int = {
 
 
 
-static const char* targetBone[] = { "Head", "Chest" };
+static const char* targetBone[] = { "Head", "Neck", "Upper Chest", "Lower Chest", "Pelvis", "Left Hand", "Right Hand", "Left Thigh", "Right Thigh", "Left Foot", "Right Foot", "Random" };
 static const char* aimbotTrigger[] = { "Aim+Shoot", "Aim", "Shoot", "Always" };
 static const char* espPoint[] = { "Bottom", "Center", "Top" };
 

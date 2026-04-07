@@ -466,21 +466,55 @@ def EspUpdate(*_, **__):
     if not hasattr(localEntity, 'model'): return
     if sync_attrs.get('bSpeed'): localEntity.model.SetMoveSpeed(sync_attrs.get('fSpeed', 1) + 8)
 
+    cam_pos = Space._instance.camera.position
     entities = []
     for entityId, entity in inst.entities.copy().items():
         if not isinstance(entity, CombatAvatar): continue
         if not getattr(entity, 'model', None): continue
         if not entity.is_alive: continue
         if IsPlayerTeammate(entityId): continue
-        
-        if sync_attrs.get('bXray'): entity.model.UseTechHighLightXray(param=(255,0,0), param2=(0,0,255,0), color2=(0,255,0))            
+
+        if sync_attrs.get('bXray'): entity.model.UseTechHighLightXray(param=(255,0,0), param2=(0,0,255,0), color2=(0,255,0))
         entityHeadPos = entity.model.GetBoneWorldPosition('biped Head')
         if not entityHeadPos: continue
-        
+
         entityHeadPosx = WorldToScreenPoint(entityHeadPos)
+        on_screen = entityHeadPosx.z > 0.0
+        dist = Distance(cam_pos, entityHeadPos)
 
+        # skip full bone calculation for far/off-screen entities to reduce CPU load
+        if on_screen and dist < sync_attrs.get('fESP_MaxDist', 300):
+            def gs(bone): return TOT2(WorldToScreenPoint(entity.model.GetBoneWorldPosition(bone)))
+            bones = {
+                "head":             gs('biped Head'),
+                "spine":            gs('biped Spine'),
+                "spine1":           gs('biped Spine1'),
+                "limbs_r_upperarm": gs('biped R UpperArm'),
+                "limbs_l_upperarm": gs('biped L UpperArm'),
+                "limbs_r_forearm":  gs('biped R Forearm'),
+                "limbs_l_forearm":  gs('biped L Forearm'),
+                "limbs_r_hand":     gs('biped R Hand'),
+                "limbs_l_hand":     gs('biped L Hand'),
+                "limbs_r_thigh":    gs('biped R Thigh'),
+                "limbs_l_thigh":    gs('biped L Thigh'),
+                "limbs_r_calf":     gs('biped R Calf'),
+                "limbs_l_calf":     gs('biped L Calf'),
+                "limbs_r_foot":     gs('biped R Foot'),
+                "limbs_l_foot":     gs('biped L Foot'),
+                "limbs_r_toe0":     gs('biped R Toe0'),
+                "limbs_l_toe0":     gs('biped L Toe0'),
+            }
+        else:
+            head_sc = TOT2(entityHeadPosx)
+            bones = {"head": head_sc, "spine": head_sc, "spine1": head_sc,
+                     "limbs_r_upperarm": head_sc, "limbs_l_upperarm": head_sc,
+                     "limbs_r_forearm": head_sc,  "limbs_l_forearm": head_sc,
+                     "limbs_r_hand": head_sc,     "limbs_l_hand": head_sc,
+                     "limbs_r_thigh": head_sc,    "limbs_l_thigh": head_sc,
+                     "limbs_r_calf": head_sc,     "limbs_l_calf": head_sc,
+                     "limbs_r_foot": head_sc,     "limbs_l_foot": head_sc,
+                     "limbs_r_toe0": head_sc,     "limbs_l_toe0": head_sc}
 
-        # Weapon info tetap sama
         weapon_id = 0
         weapon_name = "None"
         if hasattr(entity, 'GetCurWeapon'):
@@ -492,46 +526,23 @@ def EspUpdate(*_, **__):
             except:
                 pass
 
+        # only do visibility raycast for on-screen entities within range
+        is_vis = IsVisible(cam_pos, entityHeadPos, entity.id) if on_screen and dist < 150 else False
 
         entities.append({
-            "is_on_screen": entityHeadPosx.z > 0.0,
+            "is_on_screen": on_screen,
             "worldpos": [entityHeadPos.x, entityHeadPos.y, entityHeadPos.z],
-            "distance": Distance(Space._instance.camera.position, entityHeadPos),
-          
-            "bones": {
-                "head": TOT2(WorldToScreenPoint(entity.model.GetBoneWorldPosition('biped Head'))),
-                "spine": TOT2(WorldToScreenPoint(entity.model.GetBoneWorldPosition('biped Spine'))),
-                "spine1": TOT2(WorldToScreenPoint(entity.model.GetBoneWorldPosition('biped Spine1'))),
-
-                "limbs_r_upperarm": TOT2(WorldToScreenPoint(entity.model.GetBoneWorldPosition('biped R UpperArm'))),
-                "limbs_l_upperarm": TOT2(WorldToScreenPoint(entity.model.GetBoneWorldPosition('biped L UpperArm'))),
-                "limbs_r_forearm": TOT2(WorldToScreenPoint(entity.model.GetBoneWorldPosition('biped R Forearm'))),
-                "limbs_l_forearm": TOT2(WorldToScreenPoint(entity.model.GetBoneWorldPosition('biped L Forearm'))),
-                "limbs_r_hand": TOT2(WorldToScreenPoint(entity.model.GetBoneWorldPosition('biped R Hand'))),
-                "limbs_l_hand": TOT2(WorldToScreenPoint(entity.model.GetBoneWorldPosition('biped L Hand'))),
-
-                                "limbs_r_thigh": TOT2(WorldToScreenPoint(entity.model.GetBoneWorldPosition('biped R Thigh'))),
-                "limbs_l_thigh": TOT2(WorldToScreenPoint(entity.model.GetBoneWorldPosition('biped L Thigh'))),
-                "limbs_r_calf": TOT2(WorldToScreenPoint(entity.model.GetBoneWorldPosition('biped R Calf'))),
-                "limbs_l_calf": TOT2(WorldToScreenPoint(entity.model.GetBoneWorldPosition('biped L Calf'))),
-			    "limbs_r_foot": TOT2(WorldToScreenPoint(entity.model.GetBoneWorldPosition('biped R Foot'))),
-                "limbs_l_foot": TOT2(WorldToScreenPoint(entity.model.GetBoneWorldPosition('biped L Foot'))),
-		        "limbs_r_toe0": TOT2(WorldToScreenPoint(entity.model.GetBoneWorldPosition('biped R Toe0'))),
-                "limbs_l_toe0": TOT2(WorldToScreenPoint(entity.model.GetBoneWorldPosition('biped L Toe0'))),
-
-        },
+            "distance": dist,
+            "bones": bones,
             "is_bot": entity.IsRobotCombatAvatar,
             "is_knocked": entity.is_dying_state,
-            "is_visible": IsVisible(Space._instance.camera.position, entityHeadPos, entity.id),
+            "is_visible": is_vis,
             "is_health": float(getattr(entity, 'hp', 123.0)),
             "is_armor": float(getattr(entity, 'armor', 125.0)),
-
-    "is_team_id": float(getattr(entity, "team", 0)),   # untuk parsing di C++
-    "team_id": int(getattr(entity, "team", 0)),        # jaga-jaga fallback
-
-			"name": getattr(entity, "name", ""),  # <- tambahkan ini
-			
-	            "weapon_id": weapon_id,
+            "is_team_id": float(getattr(entity, "team", 0)),
+            "team_id": int(getattr(entity, "team", 0)),
+            "name": getattr(entity, "name", ""),
+            "weapon_id": weapon_id,
             "weapon_name": weapon_name,
         })
 
@@ -567,8 +578,12 @@ def OnStaticTick(self, *_, **__):
     if self: FpsPlacerInstance = self
 
 
+_aim_tick = 0
 @TRY
 def AIMUpdate(*_, **__):
+    global _aim_tick
+    _aim_tick += 1
+    if _aim_tick % 2 != 0: return  # run every 2 ticks to halve CPU load
     if not sync_attrs.get('bAIM'): return
     if not genv.avatar: return
 
@@ -677,21 +692,22 @@ Vector3 = type(DRONE_CAMERA_OFFSET)
 def GetHitData(wp, entity, bone):
     startPos = Space._instance.camera.position
     bonePos = entity.model.GetBoneWorldPosition(bone['bone_name'])
-    
-    for _ in range(150):
+
+    # cap at 40 iterations instead of 150 to reduce CPU usage and overheating
+    for _ in range(40):
         hitOffset = Vector3(randomHitOffset(), randomHitOffset(), randomHitOffset())
         hitPos = bonePos + hitOffset
-        
+
         hitDir, distance = DirAndLen3D(startPos, hitPos)
         if distance > wp['damage_range']: break
-        
+
         raycast = Space._instance.RawRaycast(startPos, wp['damage_range'], 19, with_trigger=False, to_pos=hitPos)
-        
+
         if raycast.Body and getattr(raycast.Body, 'ownerid', None):
             if getattr(raycast.Body, 'ownerid', None) == entity.id: return raycast, distance, startPos, hitDir, hitPos, hitOffset
         else:
             if raycast.Flags == 7: return raycast, distance, startPos, hitDir, hitPos, hitOffset
-    
+
     return 0, 0, 0, 0, 0, 0
 
 from gshare.formula import DirAndLen3D

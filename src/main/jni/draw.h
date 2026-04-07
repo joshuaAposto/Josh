@@ -1118,10 +1118,16 @@ void DrawMenu(ImGuiIO &io) {
 
             DrawShieldLogo(bdl, ImVec2(cx, cy - 2), 52.0f, t);
 
-            // invisible click area
+            // invisible drag + click area
             ImGui::SetCursorPos(ImVec2(0, 0));
             ImGui::InvisibleButton("##btn", ImVec2(80, 88));
-            if (ImGui::IsItemClicked()) showMenu = true;
+            if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+                ImVec2 delta = ImGui::GetIO().MouseDelta;
+                ImGui::SetWindowPos(ImVec2(ImGui::GetWindowPos().x + delta.x, ImGui::GetWindowPos().y + delta.y));
+            }
+            if (ImGui::IsItemDeactivated() && !ImGui::IsMouseDragging(ImGuiMouseButton_Left, 4.0f)) {
+                showMenu = true;
+            }
         }
         ImGui::End();
         ImGui::PopStyleVar(2);
