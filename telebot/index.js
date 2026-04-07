@@ -1,79 +1,42 @@
+require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
-const fs = require('fs');
-const path = require('path');
+const { initDB, addVip, removeVip, getVip, listVip, daysRemaining } = require('./db');
 
 const TOKEN = '8435692186:AAHBVwYMLpjbKOmH0Mqr61micneO89Lqn8A';
 const ADMIN_IDS = [7852634111];
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
-const VIP_FILE = path.join(__dirname, 'data', 'vip_users.json');
-
-function loadVipUsers() {
-    try {
-        const raw = fs.readFileSync(VIP_FILE, 'utf8');
-        return JSON.parse(raw);
-    } catch {
-        return {};
-    }
-}
-
-function saveVipUsers(data) {
-    fs.writeFileSync(VIP_FILE, JSON.stringify(data, null, 2));
-}
-
 function isAdmin(userId) {
     return ADMIN_IDS.includes(userId);
 }
 
-function isVip(userId) {
-    const users = loadVipUsers();
-    const user = users[userId];
-    if (!user) return false;
-    const now = Date.now();
-    return user.expiresAt > now;
-}
-
-function getDaysRemaining(userId) {
-    const users = loadVipUsers();
-    const user = users[userId];
-    if (!user) return 0;
-    const now = Date.now();
-    const diff = user.expiresAt - now;
-    if (diff <= 0) return 0;
-    return Math.ceil(diff / (1000 * 60 * 60 * 24));
-}
-
-function formatDate(timestamp) {
-    return new Date(timestamp).toDateString();
+function formatDate(dt) {
+    return new Date(dt).toDateString();
 }
 
 // Welcome new members
 bot.on('new_chat_members', (msg) => {
     const chatId = msg.chat.id;
-    const newMembers = msg.new_chat_members;
-
-    newMembers.forEach(member => {
+    msg.new_chat_members.forEach(member => {
         const name = member.first_name || 'User';
-        const welcomeMsg =
+        bot.sendMessage(chatId,
             `Welcome to SACREDBS VIP, ${name}!\n\n` +
             `You have joined the official ModMenu community.\n\n` +
             `Here is what you can do:\n` +
             `/start - Get started and see bot commands\n` +
             `/tutorial - Learn how to use the mod menu\n` +
             `/vipstatus - Check your VIP access status\n\n` +
-            `If you have any issues, send a message describing your problem and your phone model.`;
-
-        bot.sendMessage(chatId, welcomeMsg);
+            `If you have any issues, send a message describing your problem and your phone model.`
+        );
     });
 });
 
-// /start command
+// /start
 bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
     const name = msg.from.first_name || 'User';
-
-    const text =
+    bot.sendMessage(chatId,
         `Hello ${name}, welcome to the SACREDBS VIP Bot.\n\n` +
         `Available commands:\n` +
         `/start - Show this message\n` +
@@ -83,38 +46,34 @@ bot.onText(/\/start/, (msg) => {
         `Admin commands:\n` +
         `/addvip [user_id] [days] - Add a VIP user\n` +
         `/removevip [user_id] - Remove a VIP user\n` +
-        `/listvip - List all active VIP users\n` +
-        `/checkvip [user_id] - Check a specific user's VIP status`;
-
-    bot.sendMessage(chatId, text);
+        `/listvip - List all VIP users\n` +
+        `/checkvip [user_id] - Check a specific user VIP status`
+    );
 });
 
-// /tutorial command
+// /tutorial
 bot.onText(/\/tutorial/, (msg) => {
     const chatId = msg.chat.id;
-
-    const text =
+    bot.sendMessage(chatId,
         `How to use SACREDBS VIP ModMenu:\n\n` +
         `Step 1. Download and install the app from the channel.\n\n` +
-        `Step 2. Launch the app directly. You do not need to go to your home screen to bring it back. It opens automatically.\n\n` +
+        `Step 2. Launch the app directly. It opens automatically so you do not need to go to your home screen to bring it back.\n\n` +
         `Step 3. Open the game you want to use the mod menu on.\n\n` +
         `Step 4. The mod menu overlay will appear. Tap any feature to enable or disable it.\n\n` +
-        `Step 5. If a feature stops working, try the following:\n` +
+        `Step 5. If a feature stops working, follow these steps:\n` +
         `   - Turn on Airplane Mode\n` +
         `   - Wait 5 seconds\n` +
         `   - Turn off Airplane Mode\n` +
         `   - Reconnect to WiFi or mobile data\n` +
         `   - Launch the app again\n\n` +
-        `If the problem continues after these steps, send us a message with your phone model and a description of the issue.`;
-
-    bot.sendMessage(chatId, text);
+        `If the problem continues, send us a message with your phone model and a description of the issue.`
+    );
 });
 
-// /troubleshoot command
+// /troubleshoot
 bot.onText(/\/troubleshoot/, (msg) => {
     const chatId = msg.chat.id;
-
-    const text =
+    bot.sendMessage(chatId,
         `Troubleshooting - If the cheat is not working:\n\n` +
         `1. Turn on Airplane Mode\n` +
         `2. Wait 5 seconds\n` +
@@ -125,211 +84,193 @@ bot.onText(/\/troubleshoot/, (msg) => {
         `If the problem continues, send us a message with:\n` +
         `- Your phone model\n` +
         `- What you were doing\n` +
-        `- What exactly happened`;
-
-    bot.sendMessage(chatId, text);
-});
-
-// /vipstatus command
-bot.onText(/\/vipstatus/, (msg) => {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-
-    const users = loadVipUsers();
-    const user = users[userId];
-
-    if (!user) {
-        bot.sendMessage(chatId, `Your account does not have VIP access.\n\nContact an admin to get VIP access.`);
-        return;
-    }
-
-    const now = Date.now();
-    if (user.expiresAt <= now) {
-        bot.sendMessage(chatId, `Your VIP access has expired.\n\nExpired on: ${formatDate(user.expiresAt)}\n\nContact an admin to renew your access.`);
-        return;
-    }
-
-    const days = getDaysRemaining(userId);
-    bot.sendMessage(chatId,
-        `VIP Status: Active\n` +
-        `Days remaining: ${days} day(s)\n` +
-        `Expires on: ${formatDate(user.expiresAt)}`
+        `- What exactly happened`
     );
 });
 
-// /addvip [user_id] [days] - Admin only
-bot.onText(/\/addvip (.+)/, (msg, match) => {
+// /vipstatus
+bot.onText(/\/vipstatus/, async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    try {
+        const user = await getVip(userId);
+        if (!user) {
+            return bot.sendMessage(chatId, `Your account does not have VIP access.\n\nContact an admin to get VIP access.`);
+        }
+        if (!user.active) {
+            return bot.sendMessage(chatId,
+                `Your VIP access has expired.\n` +
+                `Expired on: ${formatDate(user.expires_at)}\n\n` +
+                `Contact an admin to renew your access.`
+            );
+        }
+        const days = daysRemaining(user.expires_at);
+        bot.sendMessage(chatId,
+            `VIP Status: Active\n` +
+            `Days remaining: ${days} day(s)\n` +
+            `Expires on: ${formatDate(user.expires_at)}`
+        );
+    } catch (err) {
+        bot.sendMessage(chatId, 'Error checking VIP status. Please try again later.');
+        console.error(err);
+    }
+});
+
+// /addvip [user_id] [days]
+bot.onText(/\/addvip (.+)/, async (msg, match) => {
     const chatId = msg.chat.id;
     const senderId = msg.from.id;
 
     if (!isAdmin(senderId)) {
-        bot.sendMessage(chatId, 'You do not have permission to use this command.');
-        return;
+        return bot.sendMessage(chatId, 'You do not have permission to use this command.');
     }
 
     const args = match[1].trim().split(/\s+/);
     if (args.length < 2) {
-        bot.sendMessage(chatId, 'Usage: /addvip [user_id] [days]');
-        return;
+        return bot.sendMessage(chatId, 'Usage: /addvip [user_id] [days]');
     }
 
     const targetId = parseInt(args[0]);
     const days = parseInt(args[1]);
 
     if (isNaN(targetId) || isNaN(days) || days <= 0) {
-        bot.sendMessage(chatId, 'Invalid user ID or number of days. Usage: /addvip [user_id] [days]');
-        return;
+        return bot.sendMessage(chatId, 'Invalid user ID or number of days.');
     }
 
-    const users = loadVipUsers();
-    const now = Date.now();
-    const existingExpiry = users[targetId] && users[targetId].expiresAt > now
-        ? users[targetId].expiresAt
-        : now;
-
-    users[targetId] = {
-        userId: targetId,
-        expiresAt: existingExpiry + days * 24 * 60 * 60 * 1000,
-        addedBy: senderId,
-        addedAt: now
-    };
-
-    saveVipUsers(users);
-
-    const remaining = Math.ceil((users[targetId].expiresAt - now) / (1000 * 60 * 60 * 24));
-    bot.sendMessage(chatId,
-        `VIP access granted.\n` +
-        `User ID: ${targetId}\n` +
-        `Days added: ${days}\n` +
-        `Total days remaining: ${remaining}\n` +
-        `Expires on: ${formatDate(users[targetId].expiresAt)}`
-    );
-
-    // Notify the user
-    bot.sendMessage(targetId,
-        `Your VIP access has been activated.\n` +
-        `Days added: ${days}\n` +
-        `Total days remaining: ${remaining}\n` +
-        `Expires on: ${formatDate(users[targetId].expiresAt)}\n\n` +
-        `Use /tutorial to learn how to use the mod menu.`
-    ).catch(() => {});
+    try {
+        const user = await addVip(targetId, days, senderId);
+        const remaining = daysRemaining(user.expires_at);
+        bot.sendMessage(chatId,
+            `VIP access granted.\n` +
+            `User ID: ${targetId}\n` +
+            `Days added: ${days}\n` +
+            `Total days remaining: ${remaining}\n` +
+            `Expires on: ${formatDate(user.expires_at)}`
+        );
+        bot.sendMessage(targetId,
+            `Your VIP access has been activated.\n` +
+            `Days added: ${days}\n` +
+            `Total days remaining: ${remaining}\n` +
+            `Expires on: ${formatDate(user.expires_at)}\n\n` +
+            `Use /tutorial to learn how to use the mod menu.`
+        ).catch(() => {});
+    } catch (err) {
+        bot.sendMessage(chatId, 'Error adding VIP. Please try again.');
+        console.error(err);
+    }
 });
 
-// /removevip [user_id] - Admin only
-bot.onText(/\/removevip (.+)/, (msg, match) => {
+// /removevip [user_id]
+bot.onText(/\/removevip (.+)/, async (msg, match) => {
     const chatId = msg.chat.id;
     const senderId = msg.from.id;
 
     if (!isAdmin(senderId)) {
-        bot.sendMessage(chatId, 'You do not have permission to use this command.');
-        return;
+        return bot.sendMessage(chatId, 'You do not have permission to use this command.');
     }
 
     const targetId = parseInt(match[1].trim());
     if (isNaN(targetId)) {
-        bot.sendMessage(chatId, 'Invalid user ID. Usage: /removevip [user_id]');
-        return;
+        return bot.sendMessage(chatId, 'Invalid user ID. Usage: /removevip [user_id]');
     }
 
-    const users = loadVipUsers();
-    if (!users[targetId]) {
-        bot.sendMessage(chatId, `User ${targetId} is not in the VIP list.`);
-        return;
+    try {
+        const removed = await removeVip(targetId);
+        if (!removed) {
+            return bot.sendMessage(chatId, `User ${targetId} is not in the VIP list.`);
+        }
+        bot.sendMessage(chatId, `VIP access removed for user ID: ${targetId}`);
+        bot.sendMessage(targetId,
+            `Your VIP access has been removed.\n\nContact an admin if you believe this is a mistake.`
+        ).catch(() => {});
+    } catch (err) {
+        bot.sendMessage(chatId, 'Error removing VIP. Please try again.');
+        console.error(err);
     }
-
-    delete users[targetId];
-    saveVipUsers(users);
-
-    bot.sendMessage(chatId, `VIP access removed for user ID: ${targetId}`);
-
-    bot.sendMessage(targetId,
-        `Your VIP access has been removed.\n\nContact an admin if you believe this is a mistake.`
-    ).catch(() => {});
 });
 
-// /listvip - Admin only
-bot.onText(/\/listvip/, (msg) => {
+// /listvip
+bot.onText(/\/listvip/, async (msg) => {
     const chatId = msg.chat.id;
     const senderId = msg.from.id;
 
     if (!isAdmin(senderId)) {
-        bot.sendMessage(chatId, 'You do not have permission to use this command.');
-        return;
+        return bot.sendMessage(chatId, 'You do not have permission to use this command.');
     }
 
-    const users = loadVipUsers();
-    const now = Date.now();
-    const entries = Object.values(users);
+    try {
+        const users = await listVip();
+        if (users.length === 0) {
+            return bot.sendMessage(chatId, 'No VIP users found.');
+        }
 
-    if (entries.length === 0) {
-        bot.sendMessage(chatId, 'No VIP users found.');
-        return;
+        const active = users.filter(u => u.active);
+        const expired = users.filter(u => !u.active);
+
+        let text = `VIP Users List\n\n`;
+        if (active.length > 0) {
+            text += `Active (${active.length}):\n`;
+            active.forEach(u => {
+                text += `- ID: ${u.user_id} | ${daysRemaining(u.expires_at)} day(s) left | Expires: ${formatDate(u.expires_at)}\n`;
+            });
+        }
+        if (expired.length > 0) {
+            text += `\nExpired (${expired.length}):\n`;
+            expired.forEach(u => {
+                text += `- ID: ${u.user_id} | Expired: ${formatDate(u.expires_at)}\n`;
+            });
+        }
+
+        bot.sendMessage(chatId, text);
+    } catch (err) {
+        bot.sendMessage(chatId, 'Error fetching VIP list. Please try again.');
+        console.error(err);
     }
-
-    const active = entries.filter(u => u.expiresAt > now);
-    const expired = entries.filter(u => u.expiresAt <= now);
-
-    let text = `VIP Users List\n\n`;
-
-    if (active.length > 0) {
-        text += `Active (${active.length}):\n`;
-        active.forEach(u => {
-            const days = Math.ceil((u.expiresAt - now) / (1000 * 60 * 60 * 24));
-            text += `- ID: ${u.userId} | ${days} day(s) left | Expires: ${formatDate(u.expiresAt)}\n`;
-        });
-    }
-
-    if (expired.length > 0) {
-        text += `\nExpired (${expired.length}):\n`;
-        expired.forEach(u => {
-            text += `- ID: ${u.userId} | Expired: ${formatDate(u.expiresAt)}\n`;
-        });
-    }
-
-    bot.sendMessage(chatId, text);
 });
 
-// /checkvip [user_id] - Admin only
-bot.onText(/\/checkvip (.+)/, (msg, match) => {
+// /checkvip [user_id]
+bot.onText(/\/checkvip (.+)/, async (msg, match) => {
     const chatId = msg.chat.id;
     const senderId = msg.from.id;
 
     if (!isAdmin(senderId)) {
-        bot.sendMessage(chatId, 'You do not have permission to use this command.');
-        return;
+        return bot.sendMessage(chatId, 'You do not have permission to use this command.');
     }
 
     const targetId = parseInt(match[1].trim());
     if (isNaN(targetId)) {
-        bot.sendMessage(chatId, 'Invalid user ID. Usage: /checkvip [user_id]');
-        return;
+        return bot.sendMessage(chatId, 'Invalid user ID. Usage: /checkvip [user_id]');
     }
 
-    const users = loadVipUsers();
-    const user = users[targetId];
-
-    if (!user) {
-        bot.sendMessage(chatId, `User ID ${targetId} does not have VIP access.`);
-        return;
-    }
-
-    const now = Date.now();
-    if (user.expiresAt <= now) {
+    try {
+        const user = await getVip(targetId);
+        if (!user) {
+            return bot.sendMessage(chatId, `User ID ${targetId} does not have VIP access.`);
+        }
+        if (!user.active) {
+            return bot.sendMessage(chatId,
+                `User ID: ${targetId}\n` +
+                `Status: Expired\n` +
+                `Expired on: ${formatDate(user.expires_at)}`
+            );
+        }
+        const days = daysRemaining(user.expires_at);
         bot.sendMessage(chatId,
             `User ID: ${targetId}\n` +
-            `Status: Expired\n` +
-            `Expired on: ${formatDate(user.expiresAt)}`
+            `Status: Active\n` +
+            `Days remaining: ${days}\n` +
+            `Expires on: ${formatDate(user.expires_at)}`
         );
-        return;
+    } catch (err) {
+        bot.sendMessage(chatId, 'Error checking user. Please try again.');
+        console.error(err);
     }
-
-    const days = Math.ceil((user.expiresAt - now) / (1000 * 60 * 60 * 24));
-    bot.sendMessage(chatId,
-        `User ID: ${targetId}\n` +
-        `Status: Active\n` +
-        `Days remaining: ${days}\n` +
-        `Expires on: ${formatDate(user.expiresAt)}`
-    );
 });
 
-console.log('SACREDBS VIP Bot is running...');
+// Start bot
+initDB().then(() => {
+    console.log('SACREDBS VIP Bot is running...');
+}).catch(err => {
+    console.error('Failed to connect to database:', err);
+    process.exit(1);
+});
