@@ -137,7 +137,7 @@ app.get('/generateKey', generateLimiter, async (req, res) => {
         const checkpointUrl  = `${YOUR_DOMAIN}/checkpoint?session_id=${sessionId}`;
         const lootLabsApiUrl = `https://creators.lootlabs.gg/api/public/url_encryptor?destination_url=${encodeURIComponent(checkpointUrl)}&api_token=${LOOT_LINK_API_TOKEN}`;
 
-        const lootRes = await axios.get(lootLabsApiUrl, { timeout: 12000 });
+        const lootRes = await axios.get(lootLabsApiUrl, { timeout: 7000 });
         if (lootRes.data && lootRes.data.message) {
             return res.json({ redirect: `${LOOT_LINK_BASE_URL}&data=${lootRes.data.message}` });
         }
@@ -154,11 +154,7 @@ app.get('/generateKey', generateLimiter, async (req, res) => {
 // Step 3: After ad → generate key
 app.get('/checkpoint', async (req, res) => {
     const { session_id } = req.query;
-    const referer = req.headers.referer || '';
-    const validReferers = ['loot-link.com', 'lootlabs.gg', 'lootdest.org'];
-    if (!validReferers.some(r => referer.includes(r))) {
-        return res.status(403).send('Direct access is forbidden.');
-    }
+    if (!session_id) return res.status(400).send('Missing session. Please go back and try again.');
 
     try {
         const rows = await sql`SELECT * FROM sessions WHERE session_id = ${session_id} LIMIT 1`;
