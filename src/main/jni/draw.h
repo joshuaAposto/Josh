@@ -179,6 +179,8 @@ bool VerifyKeyWithServer(const std::string& key, const std::string& uuid) {
                             reason = "Key revoked by admin!";
                         else if (r.find("expired") != std::string::npos)
                             reason = "Key expired!";
+                        else if (r.find("reset") != std::string::npos)
+                            reason = "Key reset by admin! Get new free key.";
                     }
                     snprintf(auth_status, sizeof(auth_status), "Login Failed: %s", reason);
                 } else {

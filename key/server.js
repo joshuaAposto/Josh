@@ -113,16 +113,17 @@ app.get('/generateKey', generateLimiter, async (req, res) => {
     const clientIp = getClientIp(req);
 
     try {
-        // Return existing valid key immediately
+        // Return existing valid FREE key directly (no redirect needed)
         const existing = await sql`
             SELECT key_string FROM keys
             WHERE hwid = ${hwid}
+              AND username = 'FREE_1DAY'
               AND expires_at > ${now}
               AND (revoked = false OR revoked IS NULL)
             LIMIT 1
         `;
         if (existing.length > 0) {
-            return res.json({ redirect: `/?generated_key=${existing[0].key_string}&success=true` });
+            return res.json({ key: existing[0].key_string });
         }
 
         // Create session
@@ -208,9 +209,12 @@ app.get('/verify', async (req, res) => {
         const isFreeKey     = found.username === 'FREE_1DAY';
 
         if (isFreeKey) {
-            // FREE key: device-locked — must match the hwid it was generated for
-            if (found.hwid && found.hwid !== hwid) {
-                return res.json({ success: false, reason: 'This free key was generated for a different device. Get your own at bskey.vercel.app' });
+            // FREE key: device-locked — hwid must match exactly; NULL hwid means admin reset it (must regenerate)
+            if (!found.hwid || found.hwid !== hwid) {
+                const reason = !found.hwid
+                    ? 'Free key was reset. Generate a new one at bskey.vercel.app'
+                    : 'This free key was generated for a different device. Get your own at bskey.vercel.app';
+                return res.json({ success: false, reason });
             }
             return res.json({ success: true, days_remaining: daysRemaining, username });
         }
@@ -336,15 +340,29 @@ app.post('/admin/delete', async (req, res) => {
     }
 });
 
-// Reset HWID binding — unbinds key from device so a new buyer can activate it
+// Reset HWID binding
+// - FREE_1DAY keys: deleted entirely so user must go through the ad flow to get a new key
+// - VIP keys: hwid set to NULL so a new device can activate the key
 app.post('/admin/reset-hwid', async (req, res) => {
     if (!checkAdmin(req, res)) return;
     try {
         const { key } = req.body;
         if (!key) return res.status(400).json({ error: 'key required' });
-        const rows = await sql`UPDATE keys SET hwid = NULL WHERE key_string = ${key} AND revoked = FALSE RETURNING key_string`;
+
+        const rows = await sql`SELECT key_string, username FROM keys WHERE key_string = ${key} AND revoked = FALSE LIMIT 1`;
         if (!rows.length) return res.status(404).json({ error: 'Key not found or revoked' });
-        res.json({ success: true, message: 'HWID unbound — key can now be activated on a new device' });
+
+        const isFreeKey = rows[0].username === 'FREE_1DAY';
+
+        if (isFreeKey) {
+            // Delete free key — user must regenerate via the ad flow
+            await sql`DELETE FROM keys WHERE key_string = ${key}`;
+            return res.json({ success: true, message: 'Free key deleted — user must regenerate a new one via the ad flow' });
+        } else {
+            // Unbind VIP key so a new device can activate it
+            await sql`UPDATE keys SET hwid = NULL WHERE key_string = ${key}`;
+            return res.json({ success: true, message: 'HWID unbound — key can now be activated on a new device' });
+        }
     } catch (e) {
         res.status(500).json({ error: 'DB error' });
     }

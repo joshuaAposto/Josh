@@ -321,17 +321,11 @@
 
         // ── Init state ──────────────────────────────────────────
         if (isSuccess === 'true' && generatedKey) {
-            genSection.classList.add('hidden');
-            sucSection.classList.remove('hidden');
-            document.getElementById('key-display').textContent = generatedKey;
+            showKey(generatedKey);
 
         } else if (hwid && signature) {
-            startBtn.classList.remove('hidden');
-            statusText.innerHTML = `
-                <span class="dot-pulse" style="width:9px;height:9px;border-radius:50%;background:#4ade80;display:inline-block;"></span>
-                HWID Linked &amp; Ready
-            `;
-            statusText.style.color = '#86efac';
+            // Auto-check if user already has a valid key
+            autoCheckKey();
 
         } else {
             statusText.innerHTML = `
@@ -339,6 +333,65 @@
                 Error: Missing HWID or Security Signature
             `;
             statusText.style.color = '#f87171';
+        }
+
+        // ── Show existing key immediately ───────────────────────
+        function showKey(key) {
+            genSection.classList.add('hidden');
+            sucSection.classList.remove('hidden');
+            document.getElementById('key-display').textContent = key;
+        }
+
+        // ── Auto-check for existing valid key on page load ──────
+        async function autoCheckKey() {
+            statusText.innerHTML = `
+                <svg class="spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10"/>
+                </svg>
+                Checking your key...
+            `;
+            statusText.style.color = 'rgba(200,150,150,0.8)';
+
+            try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 15000);
+                const resp = await fetch(`/generateKey?hwid=${encodeURIComponent(hwid)}&signature=${encodeURIComponent(signature)}`, {
+                    signal: controller.signal
+                });
+                clearTimeout(timeout);
+
+                if (!resp.ok) throw new Error('Server error ' + resp.status);
+                const data = await resp.json();
+
+                if (data.key) {
+                    // Existing valid key — show immediately, no redirect
+                    showKey(data.key);
+                    return;
+                }
+
+                if (data.error) {
+                    // Something went wrong — fall back to manual button
+                    showReadyButton();
+                    return;
+                }
+
+                // No existing key — data.redirect = LootLabs ad URL
+                // Show the generate button so user can start the ad flow
+                showReadyButton();
+
+            } catch (err) {
+                // Network issue or timeout — show button so user can try manually
+                showReadyButton();
+            }
+        }
+
+        function showReadyButton() {
+            startBtn.classList.remove('hidden');
+            statusText.innerHTML = `
+                <span class="dot-pulse" style="width:9px;height:9px;border-radius:50%;background:#4ade80;display:inline-block;"></span>
+                HWID Linked &amp; Ready
+            `;
+            statusText.style.color = '#86efac';
         }
 
         // ── Generate Key ────────────────────────────────────────
@@ -353,48 +406,35 @@
                 const controller = new AbortController();
                 const timeout = setTimeout(() => controller.abort(), 20000);
 
-                // Use redirect:'manual' so we can detect server-side redirects (old Vercel)
-                // vs JSON response (new server)
-                const resp = await fetch(genUrl(), {
-                    signal: controller.signal,
-                    redirect: 'manual'
-                });
+                const resp = await fetch(genUrl(), { signal: controller.signal });
                 clearTimeout(timeout);
-
-                // Server sent a redirect (old Vercel behavior) → navigate the page directly
-                if (resp.type === 'opaqueredirect') {
-                    window.location.href = genUrl();
-                    return; // page will navigate away
-                }
 
                 if (!resp.ok) throw new Error('Server error ' + resp.status);
 
-                const contentType = resp.headers.get('content-type') || '';
+                const data = await resp.json();
 
-                // New server returns JSON
-                if (contentType.includes('json')) {
-                    const data = await resp.json();
-                    if (data.error) { showError(data.error); return; }
-                    if (data.redirect) {
-                        setLoading(true, 'Opening ad link...');
-                        // If the tab/redirect never resolves, show retry after 20s
-                        setTimeout(() => {
-                            showError('Ad page did not load. Tap RETRY — make sure popups / redirects are allowed.');
-                        }, 20000);
-                        window.location.href = data.redirect;
-                        return;
-                    }
+                if (data.key) {
+                    // User somehow got a valid key (race condition) — show it
+                    showKey(data.key);
+                    return;
+                }
+                if (data.error) { showError(data.error); return; }
+                if (data.redirect) {
+                    setLoading(true, 'Opening ad link...');
+                    setTimeout(() => {
+                        showError('Ad page did not load. Tap RETRY — make sure popups / redirects are allowed.');
+                    }, 20000);
+                    window.location.href = data.redirect;
+                    return;
                 }
 
-                // Fallback: try page navigation directly
-                window.location.href = genUrl();
+                showError('Unexpected response. Please retry.');
 
             } catch (err) {
                 if (err.name === 'AbortError') {
                     showError('Request timed out. Check your connection and retry.');
                 } else {
-                    // Last resort — direct navigation (handles CORS/network quirks)
-                    window.location.href = genUrl();
+                    showError('Connection error. Please retry.');
                 }
             }
         }
