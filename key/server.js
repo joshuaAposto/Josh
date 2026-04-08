@@ -48,6 +48,20 @@ async function initDb() {
             created_at  BIGINT
         )
     `;
+    await sql`
+        CREATE TABLE IF NOT EXISTS app_version (
+            id           SERIAL       PRIMARY KEY,
+            version      VARCHAR(32)  NOT NULL DEFAULT '1.0',
+            download_url TEXT         NOT NULL DEFAULT '',
+            notes        TEXT         DEFAULT '',
+            updated_at   BIGINT       NOT NULL
+        )
+    `;
+    // Seed default version row if empty
+    const vRows = await sql`SELECT id FROM app_version LIMIT 1`;
+    if (vRows.length === 0) {
+        await sql`INSERT INTO app_version (version, download_url, notes, updated_at) VALUES ('1.0', '', '', ${Date.now()})`;
+    }
     // Ensure no hwid unique constraint exists (allows VIP + free keys for same device)
     try {
         await sql`ALTER TABLE keys DROP CONSTRAINT IF EXISTS keys_hwid_unique`;
@@ -376,6 +390,52 @@ app.post('/admin/renew', async (req, res) => {
         const msLeft        = newExpiry - now;
         const daysRemaining = Math.ceil(msLeft / 86400000);
         res.json({ success: true, newExpiresAt: newExpiry, daysRemaining });
+    } catch (e) {
+        res.status(500).json({ error: 'DB error' });
+    }
+});
+
+// ==========================================
+// App Version Routes
+// ==========================================
+
+// Public: app calls this to check for updates
+app.get('/version', async (req, res) => {
+    try {
+        const rows = await sql`SELECT version, download_url, notes FROM app_version ORDER BY id DESC LIMIT 1`;
+        if (!rows.length) return res.json({ version: '1.0', download_url: '', notes: '' });
+        res.json(rows[0]);
+    } catch (e) {
+        res.status(500).json({ error: 'DB error' });
+    }
+});
+
+// Admin: get current version info
+app.get('/admin/version', async (req, res) => {
+    if (!checkAdmin(req, res)) return;
+    try {
+        const rows = await sql`SELECT version, download_url, notes, updated_at FROM app_version ORDER BY id DESC LIMIT 1`;
+        if (!rows.length) return res.json({ version: '1.0', download_url: '', notes: '' });
+        res.json(rows[0]);
+    } catch (e) {
+        res.status(500).json({ error: 'DB error' });
+    }
+});
+
+// Admin: update version info
+app.post('/admin/set-version', async (req, res) => {
+    if (!checkAdmin(req, res)) return;
+    try {
+        const { version, download_url, notes } = req.body;
+        if (!version || !download_url) return res.status(400).json({ error: 'version and download_url required' });
+        const now = Date.now();
+        const existing = await sql`SELECT id FROM app_version LIMIT 1`;
+        if (existing.length > 0) {
+            await sql`UPDATE app_version SET version = ${version}, download_url = ${download_url}, notes = ${notes || ''}, updated_at = ${now} WHERE id = ${existing[0].id}`;
+        } else {
+            await sql`INSERT INTO app_version (version, download_url, notes, updated_at) VALUES (${version}, ${download_url}, ${notes || ''}, ${now})`;
+        }
+        res.json({ success: true });
     } catch (e) {
         res.status(500).json({ error: 'DB error' });
     }
