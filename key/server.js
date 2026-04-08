@@ -127,6 +127,14 @@ app.get('/generateKey', generateLimiter, async (req, res) => {
     const clientIp = getClientIp(req);
 
     try {
+        // Auto-reset HWID for expired FREE_1DAY keys so devices can re-generate freely
+        await sql`
+            UPDATE keys SET hwid = NULL
+            WHERE username = 'FREE_1DAY'
+              AND expires_at <= ${now}
+              AND hwid IS NOT NULL
+        `;
+
         // Return existing valid key immediately
         const existing = await sql`
             SELECT key_string FROM keys
