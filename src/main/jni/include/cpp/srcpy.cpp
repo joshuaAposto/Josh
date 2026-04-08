@@ -661,7 +661,7 @@ def AIMUpdate(*_, **__):
     
     if abs(hitDir[0]) < 0.00001 and abs(hitDir[1]) < 0.00001: return
 
-    smoothing = 0.00065 * sync_attrs.get('fAIM_SnapStrength', 0.1)
+    smoothing = 0.00065 * sync_attrs.get('fAIM_SnapStrength', 1.0)
     FpsPlacerInstance.TurnView(
         hitDir[0] * smoothing,
         -hitDir[1] * smoothing

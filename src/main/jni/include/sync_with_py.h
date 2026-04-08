@@ -66,7 +66,7 @@ static std::map<std::string, float> sync_float = {
     {"fAimbotFov", 0.50},
     {"fSpeed", 5.0f},
     {"fESP_LineThickness", 2.0f},
-    {"fAIM_SnapStrength", 0.1f},
+    {"fAIM_SnapStrength", 1.0f},
     {"fBulletTrack_Probability", 100.0f},
     {"fHeight", 0.0f},
     {"fWidth", 0.0f}

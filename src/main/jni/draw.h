@@ -1437,7 +1437,7 @@ void DrawMenu(ImGuiIO &io) {
                 need_sync |= Combo("Target Bone", &sync_int["iAIM_TargetBone"], targetBone, IM_ARRAYSIZE(targetBone));
                 need_sync |= Checkbox(oxorany("Draw Snapline"), &sync_bool["bAIM_SnapLine"]);
                 ImGui::PushItemWidth(120);
-                need_sync |= SliderFloat(oxorany("Aim Snap Strength"), &sync_float["fAIM_SnapStrength"], 0.001f, 0.90f);
+                need_sync |= SliderFloat(oxorany("Aim Snap Strength"), &sync_float["fAIM_SnapStrength"], 0.001f, 1.0f);
                 ImGui::PopItemWidth();
                 ImGui::Spacing(); ImGui::Spacing();
                 
