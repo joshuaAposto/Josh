@@ -149,43 +149,6 @@
       </div>
     </div>
 
-    <!-- APP VERSION CARD -->
-    <div class="card rounded-2xl p-6 mb-6">
-      <h2 class="font-bold text-red-400 mb-4 flex items-center gap-2">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-        App Version Management
-      </h2>
-      <div id="current-version-info" class="mb-4 bg-black/30 rounded-xl px-4 py-3 border border-red-900/30 text-xs text-slate-400">
-        Loading current version...
-      </div>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div>
-          <label class="text-xs text-slate-400 block mb-1">New Version (e.g. 1.1)</label>
-          <input id="ver-version" type="text" placeholder="e.g. 1.1"
-            class="w-full rounded-lg px-3 py-2.5 text-sm border outline-none focus:border-red-500 transition">
-        </div>
-        <div class="md:col-span-2">
-          <label class="text-xs text-slate-400 block mb-1">APK Download URL</label>
-          <input id="ver-url" type="text" placeholder="https://..."
-            class="w-full rounded-lg px-3 py-2.5 text-sm border outline-none focus:border-red-500 transition">
-        </div>
-        <div class="md:col-span-3">
-          <label class="text-xs text-slate-400 block mb-1">Update Notes (optional)</label>
-          <input id="ver-notes" type="text" placeholder="e.g. Bug fixes, new features..."
-            class="w-full rounded-lg px-3 py-2.5 text-sm border outline-none focus:border-red-500 transition">
-        </div>
-        <div class="flex items-end">
-          <button onclick="setVersion()"
-            class="btn-red w-full py-2.5 rounded-lg text-white font-bold text-sm hover:opacity-90 transition flex items-center justify-center gap-2">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-            Set Latest Version
-          </button>
-        </div>
-      </div>
-      <p id="ver-result" class="hidden mt-3 text-xs text-green-400 font-bold">✓ Version updated! App users will be prompted to update.</p>
-      <p id="ver-error" class="hidden mt-3 text-xs text-red-400 font-bold"></p>
-    </div>
-
     <!-- KEYS TABLE -->
     <div class="card rounded-2xl p-6">
       <div class="flex items-center justify-between mb-4">
@@ -241,7 +204,6 @@ window.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('main-panel').classList.remove('hidden');
       loadStats();
       loadKeys();
-      loadVersion();
     } else {
       localStorage.removeItem('adminPw');
       adminPw = '';
@@ -261,7 +223,6 @@ async function doLogin() {
     document.getElementById('main-panel').classList.remove('hidden');
     loadStats();
     loadKeys();
-    loadVersion();
   } else {
     document.getElementById('login-err').classList.remove('hidden');
   }
@@ -483,53 +444,6 @@ function esc(str) {
   const d = document.createElement('div');
   d.textContent = str;
   return d.innerHTML;
-}
-
-// ── APP VERSION ────────────────────────
-async function loadVersion() {
-  try {
-    const res = await fetch('/admin/version', { headers: { 'x-admin-password': adminPw } });
-    const d = await res.json();
-    const info = document.getElementById('current-version-info');
-    const updatedStr = d.updated_at ? new Date(Number(d.updated_at)).toLocaleString() : '—';
-    info.innerHTML = `<span class="text-slate-300 font-bold">Current Latest Version: <span class="text-yellow-300 font-mono">v${d.version}</span></span>
-      <span class="mx-3 text-slate-600">|</span>
-      <span>Download URL: <span class="text-blue-300 font-mono text-[11px] break-all">${d.download_url || '<span class="text-slate-600">not set</span>'}</span></span>
-      ${d.notes ? `<span class="mx-3 text-slate-600">|</span><span>Notes: <span class="text-slate-300">${esc(d.notes)}</span></span>` : ''}
-      <span class="mx-3 text-slate-600">|</span>
-      <span class="text-slate-500">Updated: ${updatedStr}</span>`;
-    document.getElementById('ver-version').value = d.version || '';
-    document.getElementById('ver-url').value = d.download_url || '';
-    document.getElementById('ver-notes').value = d.notes || '';
-  } catch (e) {}
-}
-
-async function setVersion() {
-  const version = document.getElementById('ver-version').value.trim();
-  const download_url = document.getElementById('ver-url').value.trim();
-  const notes = document.getElementById('ver-notes').value.trim();
-  const resEl = document.getElementById('ver-result');
-  const errEl = document.getElementById('ver-error');
-  resEl.classList.add('hidden');
-  errEl.classList.add('hidden');
-
-  if (!version) return (errEl.textContent = 'Enter a version number.', errEl.classList.remove('hidden'));
-  if (!download_url) return (errEl.textContent = 'Enter the APK download URL.', errEl.classList.remove('hidden'));
-
-  const res = await fetch('/admin/set-version', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPw },
-    body: JSON.stringify({ version, download_url, notes })
-  });
-  const data = await res.json();
-  if (data.success) {
-    resEl.classList.remove('hidden');
-    loadVersion();
-    setTimeout(() => resEl.classList.add('hidden'), 4000);
-  } else {
-    errEl.textContent = 'Error: ' + (data.error || 'Unknown error');
-    errEl.classList.remove('hidden');
-  }
 }
 
 // Auto-refresh stats every 30s
