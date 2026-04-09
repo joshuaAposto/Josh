@@ -1,0 +1,521 @@
+#define PACKAGE_NAME "com.netease.newspike"
+#include "include/obfuscate.h"
+#include "obfuscate.h"
+#include "include/includes.h"
+#include "And64InlineHook/And64InlineHook.hpp"
+#include "xhook/xhook.h"
+#include "KittyMemory/MemoryPatch.h"
+#include <thread>
+#include "Domain.h"
+#include "include/hpp/srcpy.h"
+#include <pthread.h>
+#include <pthread.h>
+#include <jni.h>
+#include <dlfcn.h>
+#include <netdb.h>
+#include <android/log.h>
+#include <string.h>
+#include <dlfcn.h>
+#include <netdb.h>
+#include <string.h>
+#include <unistd.h>
+#include <android/log.h>
+#include <fstream>
+#include <string>
+#include <cstdio>
+#include <unistd.h>
+#include <sys/ptrace.h>
+#include <sys/mman.h>
+#include <dlfcn.h>
+#include <fcntl.h>
+#include <string.h>
+#include <stdio.h>
+#include <jni.h>
+#include <ctime>
+#include <cstdlib>
+#include <android/log.h>
+#include <unistd.h>
+#include "FireWall.h"
+#include <jni.h>
+#include <ctime>
+#include <cstdlib>
+#include <android/log.h>
+#include <unistd.h>
+#include <iostream>
+
+#include <fstream>
+#include <string>
+
+// ========== WEAPON SKIN SCANNER ==========
+// Tambahkan di bagian atas main.cpp setelah includes
+
+#include <vector>
+#include <sstream>
+
+#include "DomainScanner.h"
+#include "NetworkHooks.h"
+#include "AntiDetection.h"
+#include "AntiTelemetry.h"  // TAMBAHKAN INI
+
+
+std::string sdcardPath = "/sdcard/";
+std::string logFilePath = sdcardPath + "offset.txt";
+typedef void* (*PyRun_StringFlags_t)(const char*, int, void*, void*, void*);
+PyRun_StringFlags_t PyRun_StringFlags;
+
+#define LOG_TAG "MOD"
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+
+#define EXPIRED_DAY   16
+#define EXPIRED_MONTH 8
+#define EXPIRED_YEAR  2025
+
+
+
+bool isExpired() {
+    time_t now = time(nullptr);
+    struct tm *ltm = localtime(&now);
+
+    int year = 1900 + ltm->tm_year;
+    int month = 1 + ltm->tm_mon;
+    int day = ltm->tm_mday;
+    if (year > EXPIRED_YEAR) return true;
+    if (year == EXPIRED_YEAR && month > EXPIRED_MONTH) return true;
+    if (year == EXPIRED_YEAR && month == EXPIRED_MONTH && day > EXPIRED_DAY) return true;
+
+    return false;
+}
+
+// Struktur untuk menyimpan informasi weapon & skin
+struct WeaponSkinInfo {
+    int weaponId;
+    int skinId;
+    std::string weaponName;
+    std::string skinName;
+};
+
+// Deklarasi fungsi
+void parseWeaponScanResults();
+void saveScanSummary();
+
+// Vector untuk menyimpan hasil scan
+std::vector<WeaponSkinInfo> foundSkins;
+
+// ========== PARSE SCAN RESULTS ==========
+void parseWeaponScanResults() {
+    std::ifstream scanFile("/sdcard/weapon_scan.txt");
+    
+    if (!scanFile.is_open()) {
+        std::cout << "[ERROR] Cannot open scan results" << std::endl;
+        return;
+    }
+
+    std::string line;
+    foundSkins.clear();
+
+    while (std::getline(scanFile, line)) {
+        if (line.find("WEAPON_SCAN|") == 0) {
+            // Parse: WEAPON_SCAN|weaponId|skinId|weaponName|skinName
+            std::stringstream ss(line);
+            std::string token;
+            std::vector<std::string> tokens;
+
+            while (std::getline(ss, token, '|')) {
+                tokens.push_back(token);
+            }
+
+            if (tokens.size() >= 5) {
+                WeaponSkinInfo info;
+                info.weaponId = std::stoi(tokens[1]);
+                info.skinId = std::stoi(tokens[2]);
+                info.weaponName = tokens[3];
+                info.skinName = tokens[4];
+
+                foundSkins.push_back(info);
+
+                std::cout << "[FOUND] Weapon: " << info.weaponName 
+                         << " (ID: " << info.weaponId 
+                         << ") | Skin: " << info.skinName 
+                         << " (ID: " << info.skinId << ")" << std::endl;
+            }
+        }
+    }
+
+    scanFile.close();
+}
+
+// ========== SAVE SUMMARY ==========
+void saveScanSummary() {
+    std::ofstream summary("/sdcard/weapon_skin_summary.txt");
+    
+    if (!summary.is_open()) {
+        std::cout << "[ERROR] Cannot create summary file" << std::endl;
+        return;
+    }
+
+    summary << "========== WEAPON & SKIN SCAN RESULTS ==========" << std::endl;
+    summary << "Total items found: " << foundSkins.size() << std::endl;
+    summary << std::endl;
+
+    for (size_t i = 0; i < foundSkins.size(); i++) {
+        summary << "[" << (i + 1) << "] " 
+                << foundSkins[i].weaponName << " (ID: " << foundSkins[i].weaponId << ")"
+                << " | " << foundSkins[i].skinName << " (ID: " << foundSkins[i].skinId << ")"
+                << std::endl;
+    }
+
+    summary << std::endl;
+    summary << "Scan completed successfully!" << std::endl;
+    summary.close();
+
+    std::cout << "[SUCCESS] Summary saved to /sdcard/weapon_skin_summary.txt" << std::endl;
+}
+
+// ========== MAIN FUNCTION ==========
+int main() {
+    std::cout << "========== WEAPON & SKIN SCANNER ==========" << std::endl;
+    std::cout << std::endl;
+
+    // Parse hasil scan
+    std::cout << "[INFO] Parsing scan results..." << std::endl;
+    parseWeaponScanResults();
+    
+    std::cout << std::endl;
+    std::cout << "[INFO] Total skins found: " << foundSkins.size() << std::endl;
+    std::cout << std::endl;
+
+    // Simpan ringkasan
+    std::cout << "[INFO] Saving summary..." << std::endl;
+    saveScanSummary();
+
+    std::cout << std::endl;
+    std::cout << "[DONE] Scan process completed!" << std::endl;
+
+    return 0;
+}
+
+
+/*
+
+// Function to log offset to file
+void logOffset(uintptr_t offset, const std::string& patternName) {
+    std::string logFilePath = "/sdcard/offset_log.txt";
+    std::ofstream logFile(logFilePath, std::ios_base::app);
+    if (logFile.is_open()) {
+        logFile << patternName << " offset: " << std::hex << offset << std::endl;
+        logFile.close();
+    } else {
+        printf("Unable to open log file\n");
+    }
+}
+*/
+static bool isTouching = false;
+static float touchX = 0.0f, touchY = 0.0f;
+
+DEFINES(void*, _v07, const char *filename, int flags) { return nullptr; }
+DEFINES(void*, _xv07, const char *filename, int flags) { return nullptr; }
+
+static int iLoaded = 0, iLoadAt = 2;
+DEFINES(void*, iMissMyWife, const char* v0, int v1, void* v2, void* v3, void* v4) {
+    static bool loaded = false;
+    if (v1 == 257) { iLoaded ++;
+        if (iLoaded >= iLoadAt && !loaded) {
+            loaded = true;
+            _iMissMyWife(srcpy, 257, v2, v2, NULL);
+        }
+    }
+    
+    return _iMissMyWife(v0, v1, v2, v3, v4);
+}
+
+
+#include <fstream>
+#include <string>
+#include <ctime>
+#include <sys/stat.h>
+
+
+
+#include "draw.h"
+#include "include/input.h"
+#include <pthread.h>
+#include <unistd.h>  // untuk sleep()
+
+
+
+// REPLACE your hack_thread function with this corrected version:
+
+
+
+
+
+
+
+
+
+void* hack_thread(void*) {
+    LOGI("[INIT] Hack thread started");
+    sleep(3);
+    
+    LOGI("========================================");
+    LOGI("Starting Protected Mod Loader");
+    LOGI("========================================");
+    
+    // Initialize Anti-Telemetry FIRST!
+    LOGI("[INIT] Starting Anti-Telemetry System...");
+    initAntiTelemetry();
+    
+    if (globalAntiTelemetry) {
+        LOGI("[OK] Anti-Telemetry ready - blocking telemetry domains");
+        
+        // TESTING - Hapus setelah verifikasi
+        sleep(1);
+        LOGI("[TEST] Running Anti-Telemetry tests...");
+        
+        // Test beberapa domain
+        std::vector<std::pair<std::string, bool>> tests = {
+            {"log.netease.com", true},           // Harus diblock
+            {"stat.163.com", true},              // Harus diblock
+            {"analytics.netease.com", true},     // Harus diblock
+            {"game.163.com", false},             // Harus lewat (whitelist)
+            {"login.163.com", false}             // Harus lewat (whitelist)
+        };
+        
+        int pass = 0, fail = 0;
+        for (const auto& test : tests) {
+            bool blocked = globalAntiTelemetry->checkAndBlock(test.first);
+            bool expected = test.second;
+            
+            if (blocked == expected) {
+                LOGI("[TEST PASS] %s - %s", test.first.c_str(), 
+                     blocked ? "BLOCKED" : "ALLOWED");
+                pass++;
+            } else {
+                LOGI("[TEST FAIL] %s - Expected %s, Got %s", test.first.c_str(),
+                     expected ? "BLOCK" : "ALLOW", blocked ? "BLOCK" : "ALLOW");
+                fail++;
+            }
+        }
+        
+        LOGI("[TEST RESULT] Pass: %d, Fail: %d", pass, fail);
+        LOGI("[TEST] Total Blocked: %d", globalAntiTelemetry->getTotalBlocked());
+    }
+    
+    // Then Domain Scanner
+    LOGI("[INIT] Starting Domain Scanner...");
+    initDomainScanner();
+    
+    if (globalScanner) {
+        LOGI("[OK] Domain Scanner ready");
+        
+        // Install network hooks
+        installNetworkHooks();
+        LOGI("[OK] Network hooks installed with Anti-Telemetry");
+    } else {
+        LOGI("[ERROR] Failed to initialize systems");
+    }
+
+
+
+/*
+void* hack_thread(void*) {
+    // Initialize offset logger FIRST
+  //  initOffsetLogger();
+  
+    LOGI("[INIT] Hack thread started");
+    sleep(3); 
+	
+	
+	LOGI("========================================");
+    LOGI("Starting Protected Mod Loader");
+    LOGI("========================================");
+	
+	
+	// Initialize Anti-Telemetry FIRST!
+    LOGI("[INIT] Starting Anti-Telemetry System...");
+    initAntiTelemetry();
+    
+    if (globalAntiTelemetry) {
+        LOGI("[OK] Anti-Telemetry ready - blocking telemetry domains");
+    }
+    
+    // INITIALIZE ANTI-DETECTION FIRST!
+   // initAntiDetection();
+    
+  //  sleep(1);
+	
+	
+	LOGI("[INIT] Starting Domain Scanner...");
+    
+    // Initialize domain scanner FIRST
+    initDomainScanner();
+    
+    if (globalScanner) {
+        LOGI("[OK] Domain Scanner ready");
+        LOGI("[OK] Save file: /storage/emulated/0/domain.txt");
+        
+        // Install network hooks
+        installNetworkHooks();
+        LOGI("[OK] Network hooks installed");
+		LOGI("[OK] Network hooks installed with Anti-Telemetry");
+    } else {
+        LOGI("[ERROR] Failed to initialize Domain Scanner");
+		LOGI("[ERROR] Failed to initialize systems");
+    }
+    
+*/
+    hookFunctions();
+    p_glGetIntegerv = (void (*)(unsigned int, int *))((const void*(*)(...))dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glGetIntegerv")));
+    p_glGetBooleanv = (void (*)(unsigned int, unsigned char *))((const void*(*)(...))dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glGetBooleanv")));
+    p_glDepthRangef = (void (*)(float, float))((const void*(*)(...))dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glDepthRangef")));
+    p_glBlendColor = (void (*)(float, float, float, float))((const void*(*)(...))dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glBlendColor")));
+    p_glEnable = (void (*)(unsigned int))((const void*(*)(...))dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glEnable")));
+    p_glLineWidth = (void (*)(float))((const void*(*)(...))dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glLineWidth")));
+    p_glBlendFunc = (void (*)(unsigned int, unsigned int))((const void*(*)(...))dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glBlendFunc")));
+    p_glDisable = (void (*)(unsigned int))((const void*(*)(...))dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glDisable")));
+    p_glCullFace = (void (*)(unsigned int))((const void*(*)(...))dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glCullFace")));
+
+    DobbyHook((void *) dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glGetUniformLocation")), (void *) new_glGetUniformLocation, (void **) &old_glGetUniformLocation);
+    DobbyHook((void *) dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glDrawElements")), (void *) new_glDrawElements, (void **) &old_glDrawElements);
+
+    if (!fdlopen(oxorany("libGame.so"), 0)) return 0;
+    auto libGame = absoluteAddress(oxorany("libGame.so"));
+    if (!libGame) return 0;
+	
+			
+    create_directory_recursive(xorstr_("/data/data/" PACKAGE_NAME "/imgui"));
+	
+	
+	// Create domains directory
+    system("mkdir -p /sdcard/");
+    
+
+    HOOKI((ptr) libGame + 0x46F47BC, iMissMyWife);
+	
+	
+	
+    __INPUT__();
+     start_entity_reader();
+     HOOKIT(xorstr_("libEGL.so"), xorstr_("eglSwapBuffers"), Draw);
+	 LOGI("========================================");
+    LOGI("Mod Loaded Successfully - Protected Mode");
+    LOGI("========================================");
+	LOGI("========================================");
+    LOGI("Mod Loaded - Anti-Telemetry Active");
+    LOGI("========================================");
+	
+	LOGI("========================================");
+    LOGI("Mod Loaded Successfully - Protected Mode");
+    LOGI("========================================");
+    LOGI("========================================");
+    LOGI("Mod Loaded - Anti-Telemetry Active");
+    LOGI("========================================");
+    
+    
+    return 0;
+}
+
+__attribute__((constructor))
+void lib_main() {
+	// Random delay untuk avoid pattern detection
+    usleep((rand() % 1000 + 500) * 1000);
+    
+    
+    std::thread(hack_thread, nullptr).detach();
+}
+
+extern "C"
+JNIEXPORT jint JNICALL
+JNI_OnLoad(JavaVM *vm, void *reserved) {
+    JNIEnv *env;
+    jvm = vm;
+    vm->GetEnv((void **) &env, JNI_VERSION_1_6);
+    return JNI_VERSION_1_6;
+}
+
+/*
+
+
+void* hack_thread(void*) {
+    LOGI("[INIT] Hack thread started");
+    sleep(3); 
+    
+    LOGI("========================================");
+    LOGI("Starting Protected Mod Loader");
+    LOGI("========================================");
+    
+    // COMMENT OUT ANTI-DETECTION UNTUK TESTING
+    // initAntiDetection();
+    
+    LOGI("[INIT] Starting Domain Scanner...");
+    
+    // Initialize domain scanner
+    initDomainScanner();
+    
+    if (globalScanner) {
+        LOGI("[OK] Domain Scanner ready");
+        installNetworkHooks();
+        LOGI("[OK] Network hooks installed");
+    } else {
+        LOGI("[ERROR] Failed to initialize Domain Scanner");
+    }
+    
+    hookFunctions();
+    
+    // GL Function pointers
+    p_glGetIntegerv = (void (*)(unsigned int, int *))((const void*(*)(...))dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glGetIntegerv")));
+    p_glGetBooleanv = (void (*)(unsigned int, unsigned char *))((const void*(*)(...))dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glGetBooleanv")));
+    p_glDepthRangef = (void (*)(float, float))((const void*(*)(...))dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glDepthRangef")));
+    p_glBlendColor = (void (*)(float, float, float, float))((const void*(*)(...))dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glBlendColor")));
+    p_glEnable = (void (*)(unsigned int))((const void*(*)(...))dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glEnable")));
+    p_glLineWidth = (void (*)(float))((const void*(*)(...))dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glLineWidth")));
+    p_glBlendFunc = (void (*)(unsigned int, unsigned int))((const void*(*)(...))dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glBlendFunc")));
+    p_glDisable = (void (*)(unsigned int))((const void*(*)(...))dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glDisable")));
+    p_glCullFace = (void (*)(unsigned int))((const void*(*)(...))dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glCullFace")));
+
+    DobbyHook((void *) dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glGetUniformLocation")), (void *) new_glGetUniformLocation, (void **) &old_glGetUniformLocation);
+    DobbyHook((void *) dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glDrawElements")), (void *) new_glDrawElements, (void **) &old_glDrawElements);
+
+    if (!fdlopen(oxorany("libGame.so"), 0)) {
+        LOGI("[ERROR] Failed to load libGame.so");
+        return 0;
+    }
+    
+    auto libGame = absoluteAddress(oxorany("libGame.so"));
+    if (!libGame) {
+        LOGI("[ERROR] Failed to get libGame base address");
+        return 0;
+    }
+    
+    create_directory_recursive(xorstr_("/data/data/" PACKAGE_NAME "/imgui"));
+    system("mkdir -p /sdcard/");
+    
+    HOOKI((ptr) libGame + 0x46F47BC, iMissMyWife);
+    
+    __INPUT__();
+    start_entity_reader();
+    
+    LOGI("[INFO] Hooking eglSwapBuffers for menu rendering...");
+    HOOKIT(xorstr_("libEGL.so"), xorstr_("eglSwapBuffers"), Draw);
+    
+    LOGI("========================================");
+    LOGI("Mod Loaded Successfully - Menu Active");
+    LOGI("========================================");
+    
+    return 0;
+}
+
+__attribute__((constructor))
+void lib_main() {
+    // Random delay
+    usleep((rand() % 1000 + 500) * 1000);
+    
+    std::thread(hack_thread, nullptr).detach();
+}
+*/
+// eror
+
+
+
+
+

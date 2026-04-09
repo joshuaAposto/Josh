@@ -88,7 +88,7 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "node key/server.js & node bs/server.js"
+args = "node key/server.js"
 waitForPort = 5000
 
 [[ports]]
