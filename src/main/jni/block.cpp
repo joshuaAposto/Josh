@@ -2,24 +2,18 @@
 #include "And64InlineHook/And64InlineHook.hpp"
 #include <netdb.h>
 #include <sys/socket.h>
+#include <arpa/inet.h>
 #include <unistd.h>
 #include <dlfcn.h>
 #include <cstring>
+#include <cstdio>
+#include <cstdlib>
 #include <array>
 #include <string>
 #include <vector>
 #include <unordered_set>
 #include <algorithm>
-
-#include <arpa/inet.h>
-#include <dlfcn.h>
-#include <cstring>
-#include <cstdio>
-#include <cstdlib>
-#include <netdb.h>
-#include <sys/socket.h>
 #include <android/log.h>
-#include "Substrate/And64InlineHook.hpp"
 // Daftar domain yang ingin diblok
 static const char* BLACKLIST[] = {
     "analytics.bloodstrike.netease.com",

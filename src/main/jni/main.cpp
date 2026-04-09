@@ -51,10 +51,10 @@ void *__1__(void *) {
     // ========== PROTECTION SYSTEM INIT ==========
     initAntiTelemetry();
     initDomainScanner();
-    installNetworkHooks();
-    install_domain_blocker();
+    // installNetworkHooks() disabled — xhook on ALL .so files causes crash + double-hooks getaddrinfo with install_domain_blocker
+    install_domain_blocker();   // surgical A64 hook on getaddrinfo only
     sleep(1);
-    initAntiDetection();
+    // initAntiDetection() disabled — hooks read/fopen/dlopen in ALL .so files, too aggressive, crashes game
     hookFunctions();
     initChams();
     // ============================================
