@@ -103,6 +103,47 @@ app.get('/', generateLimiter, (req, res) => {
     return res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Step 1b: Lightweight check — does this HWID already have a valid key? No session/LootLabs call.
+app.get('/checkKey', generateLimiter, async (req, res) => {
+    const { hwid, signature } = req.query;
+    if (!hwid || !signature) return res.json({ error: 'Missing params' });
+    if (!verifySignature(hwid, signature)) return res.json({ error: 'Invalid signature' });
+
+    const now = Date.now();
+    try {
+        // Check VIP key first (no hwid filter — VIP can be activated by any device)
+        const vip = await sql`
+            SELECT key_string, username, expires_at FROM keys
+            WHERE (hwid = ${hwid} OR hwid IS NULL)
+              AND username != 'FREE_1DAY'
+              AND expires_at > ${now}
+              AND (revoked = false OR revoked IS NULL)
+            LIMIT 1
+        `;
+        if (vip.length > 0 && vip[0].hwid === hwid) {
+            return res.json({ key: vip[0].key_string, username: vip[0].username });
+        }
+
+        // Check free key
+        const free = await sql`
+            SELECT key_string FROM keys
+            WHERE hwid = ${hwid}
+              AND username = 'FREE_1DAY'
+              AND expires_at > ${now}
+              AND (revoked = false OR revoked IS NULL)
+            LIMIT 1
+        `;
+        if (free.length > 0) {
+            return res.json({ key: free[0].key_string });
+        }
+
+        return res.json({ noKey: true });
+    } catch (err) {
+        console.error('checkKey error:', err.message);
+        return res.json({ error: 'Server error' });
+    }
+});
+
 // Step 2: User taps GENERATE KEY → create session → return LootLabs ad URL as JSON
 app.get('/generateKey', generateLimiter, async (req, res) => {
     const { hwid, signature } = req.query;
@@ -160,14 +201,26 @@ app.get('/generateKey', generateLimiter, async (req, res) => {
     }
 });
 
+function checkpointErrorHtml(title, msg) {
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SacredBS Key</title>
+<style>body{background:#0a0a0f;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px;box-sizing:border-box;}
+.box{background:#111827;border:1px solid #7f1d1d;border-radius:16px;padding:28px 24px;max-width:340px;width:100%;text-align:center;}
+h2{color:#f87171;margin:0 0 12px;}p{color:#cbd5e1;font-size:14px;margin:0 0 20px;line-height:1.5;}
+a{display:block;background:linear-gradient(135deg,#991b1b,#7f1d1d);color:#fff;text-decoration:none;padding:12px;border-radius:10px;font-weight:bold;font-size:15px;}
+</style></head><body><div class="box">
+<h2>⚠ ${title}</h2><p>${msg}</p>
+<a href="javascript:history.back()">← Go Back &amp; Try Again</a></div></body></html>`;
+}
+
 // Step 3: After ad → generate key
 app.get('/checkpoint', async (req, res) => {
     const { session_id } = req.query;
-    if (!session_id) return res.status(400).send('Missing session. Please go back and try again.');
+    if (!session_id) return res.status(400).send(checkpointErrorHtml('Missing Session', 'Please close this and tap GENERATE KEY again in the mod menu.'));
 
     try {
         const rows = await sql`SELECT * FROM sessions WHERE session_id = ${session_id} LIMIT 1`;
-        if (rows.length === 0) return res.status(400).send('Session expired. Please go back and generate a new key.');
+        if (rows.length === 0) return res.status(400).send(checkpointErrorHtml('Session Expired', 'This link has already been used or expired. Please close this and tap GENERATE KEY again.'));
 
         const session   = rows[0];
 
@@ -175,7 +228,7 @@ app.get('/checkpoint', async (req, res) => {
         const sessionAge = Date.now() - Number(session.created_at);
         if (sessionAge > 2 * 60 * 60 * 1000) {
             await sql`DELETE FROM sessions WHERE session_id = ${session_id}`;
-            return res.status(400).send('Session expired (too old). Please go back and generate a new key.');
+            return res.status(400).send(checkpointErrorHtml('Session Too Old', 'Your session expired after 2 hours. Please close this and tap GENERATE KEY again.'));
         }
 
         const newKey    = 'SACRED_' + crypto.randomBytes(4).toString('hex').toUpperCase();
@@ -196,7 +249,7 @@ app.get('/checkpoint', async (req, res) => {
 
     } catch (err) {
         console.error('checkpoint error:', err.message || err);
-        return res.status(500).send('Verification failed. Please try again.');
+        return res.status(500).send(checkpointErrorHtml('Server Error', 'Something went wrong on our end. Please close this and tap GENERATE KEY again.'));
     }
 });
 

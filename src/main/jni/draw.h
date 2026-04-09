@@ -1836,7 +1836,7 @@ void DrawMenu(ImGuiIO &io) {
             }
         }
 
-        if (tab_changed || need_sync) sync_with_py();
+        // sync_with_py disabled
 
         ImGui::EndChild(); 
         ImGui::SetWindowFontScale(1.0f); 
