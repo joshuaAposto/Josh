@@ -247,8 +247,8 @@ app.get('/verify', async (req, res) => {
             // FREE key: device-locked — hwid must match exactly; NULL hwid means admin reset it (must regenerate)
             if (!found.hwid || found.hwid !== hwid) {
                 const reason = !found.hwid
-                    ? 'Free key was reset. Generate a new one at bskey.vercel.app'
-                    : 'This free key was generated for a different device. Get your own at bskey.vercel.app';
+                    ? 'Free key was reset. Generate a new one at bskey.replit.app'
+                    : 'This free key was generated for a different device. Get your own at bskey.replit.app';
                 return res.json(buildVerifyResponse(false, reason, hwid));
             }
             const payload = buildVerifyResponse(true, `Welcome back, ${username}! ${daysRemaining}d left`, hwid);

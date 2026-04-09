@@ -101,7 +101,7 @@ std::string GenerateSecuritySignature(const std::string& hwid) {
 
 std::string GetKeyGeneratorLink(const std::string& uuid) {
     std::string signature = GenerateSecuritySignature(uuid);
-    return "https://ryukobs-generator.up.railway.app/?hwid=" + uuid + "&signature=" + signature;
+    return "https://bskey.replit.app/?hwid=" + uuid + "&signature=" + signature;
 }
 
 // 4. Verify the Key via HTTP Request
@@ -126,7 +126,7 @@ bool VerifyKeyWithServer(const std::string& key, const std::string& uuid) {
         return false;
     }
 
-    std::string url = "https://ryukobs-generator.up.railway.app/verify?key=";
+    std::string url = "https://bskey.replit.app/verify?key=";
     url += escaped_key;
     url += "&hwid=";
     url += escaped_uuid;
