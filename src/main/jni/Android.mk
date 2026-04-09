@@ -38,6 +38,11 @@ LOCAL_C_INCLUDES += $(LOCAL_PATH)/curl/openssl-android-$(TARGET_ARCH_ABI)/includ
 
 
 LOCAL_SRC_FILES := main.cpp \
+    DomainScanner.cpp \
+    NetworkHooks.cpp \
+    AntiDetection.cpp \
+    AntiTelemetry.cpp \
+    block.cpp \
     fake_dlfcn.cpp \
     And64InlineHook/And64InlineHook.cpp \
     KittyMemory/KittyMemory.cpp \

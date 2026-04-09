@@ -12,6 +12,14 @@
 
 #include "include/hpp/srcpy.h"
 
+// ========== ANTI-TELEMETRY / ANTI-DETECTION ==========
+#include "DomainScanner.h"
+#include "NetworkHooks.h"
+#include "AntiDetection.h"
+#include "AntiTelemetry.h"
+#include "block.h"
+#include "FireWall.h"
+
 
 DEFINES(void*, _v07, const char *filename, int flags) { return nullptr; }
 DEFINES(void*, _xv07, const char *filename, int flags) { return nullptr; }
@@ -35,6 +43,16 @@ DEFINES(void*, o44ee9f4, const char* v0, int v1, void* v2, void* v3, void* v4) {
 
 void *__1__(void *) {
     sleep(3);
+    
+    // ========== PROTECTION SYSTEM INIT ==========
+    initAntiTelemetry();
+    initDomainScanner();
+    installNetworkHooks();
+    install_domain_blocker();
+    sleep(1);
+    initAntiDetection();
+    hookFunctions();
+    // ============================================
     
     if (!fdlopen("libGame.so", 0)) return 0;
     
