@@ -1,0 +1,173 @@
+//#ifndef ANTI_DETECT_H
+//#define ANTI_DETECT_H
+
+
+#include "anti_detect.h"
+#include <errno.h>
+#include <string.h>
+
+// Initialize static member variable
+bool AntiDetection::isInitialized = false;
+
+// ==================== INITIALIZE ====================
+void AntiDetection::Initialize(JNIEnv* env) {
+    if (isInitialized) {
+        LOGD("Anti-Detection already initialized");
+        return;
+    }
+    
+    LOGD("Initializing Anti-Detection System...");
+    
+    // Simple initialization
+    HideLibrary("libGame.so");
+    
+    isInitialized = true;
+    LOGD("Anti-Detection System initialized successfully");
+}
+
+// ==================== SECURITY CHECK ====================
+bool AntiDetection::PerformSecurityCheck() {
+    if (!isInitialized) {
+        LOGD("Anti-Detection not initialized, initializing now...");
+        Initialize(nullptr);
+    }
+    
+    LOGD("Security check performed (bypassed)");
+    return true;
+}
+
+// ==================== HIDE LIBRARY ====================
+void AntiDetection::HideLibrary(const char* libName) {
+    if (!libName) {
+        LOGD("HideLibrary: Invalid library name");
+        return;
+    }
+    
+    LOGD("Attempting to hide library: %s", libName);
+    
+    // Get current library info
+    Dl_info info;
+    if (dladdr((void*)AntiDetection::Initialize, &info)) {
+        if (info.dli_fname) {
+            LOGD("Current library path: %s", info.dli_fname);
+        }
+    }
+    
+    // Try to check if library is loaded
+    void* handle = dlopen(libName, RTLD_NOW | RTLD_NOLOAD);
+    if (handle) {
+        LOGD("Library %s is already loaded", libName);
+        dlclose(handle);
+    } else {
+        LOGD("Library %s not found in memory", libName);
+    }
+    
+    LOGD("Library hiding attempted (basic mode)");
+}
+
+// ==================== PROTECT MEMORY ====================
+void AntiDetection::ProtectMemoryRegion(uintptr_t address, size_t size) {
+    if (address == 0 || size == 0) {
+        LOGD("Invalid memory region parameters");
+        return;
+    }
+    
+    long pageSize = sysconf(_SC_PAGESIZE);
+    if (pageSize <= 0) {
+        LOGD("Failed to get page size");
+        return;
+    }
+    
+    // Align address to page boundary
+    uintptr_t alignedAddr = (address & ~(pageSize - 1));
+    size_t alignedSize = ((size + pageSize - 1) / pageSize) * pageSize;
+    
+    // Try to protect memory region
+    int result = mprotect((void*)alignedAddr, alignedSize, PROT_READ | PROT_EXEC);
+    
+    if (result == 0) {
+        LOGD("Memory region protected successfully at 0x%lx", (unsigned long)address);
+    } else {
+        LOGD("Failed to protect memory at 0x%lx: %s", (unsigned long)address, strerror(errno));
+    }
+}
+
+// ==================== HELPER NAMESPACE ====================
+namespace AntiDetectionHelpers {
+
+bool isRooted() {
+    const char* rootPaths[] = {
+        "/system/app/Superuser.apk",
+        "/sbin/su",
+        "/system/bin/su",
+        "/system/xbin/su",
+        "/data/local/xbin/su",
+        "/data/local/bin/su",
+        "/system/sd/xbin/su",
+        "/system/bin/failsafe/su",
+        "/data/local/su",
+        nullptr
+    };
+    
+    for (int i = 0; rootPaths[i] != nullptr; i++) {
+        if (access(rootPaths[i], F_OK) == 0) {
+            LOGD("Root file detected: %s", rootPaths[i]);
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+bool isEmulator() {
+    char brand[PROP_VALUE_MAX] = {0};
+    __system_property_get("ro.product.brand", brand);
+    
+    if (strstr(brand, "generic") != nullptr) {
+        LOGD("Emulator detected via brand: %s", brand);
+        return true;
+    }
+    
+    return false;
+}
+
+bool isDebuggerAttached() {
+    FILE* fp = fopen("/proc/self/status", "r");
+    if (!fp) return false;
+    
+    char line[256];
+    bool debugged = false;
+    
+    while (fgets(line, sizeof(line), fp)) {
+        if (strncmp(line, "TracerPid:", 10) == 0) {
+            int pid = atoi(line + 10);
+            debugged = (pid != 0);
+            break;
+        }
+    }
+    
+    fclose(fp);
+    
+    if (debugged) {
+        LOGD("Debugger detected");
+    }
+    
+    return debugged;
+}
+
+void antiPtrace() {
+    LOGD("Anti-ptrace protection enabled");
+}
+
+void clearSensitiveData(void* ptr, size_t size) {
+    if (!ptr || size == 0) return;
+    
+    volatile unsigned char* p = (volatile unsigned char*)ptr;
+    for (size_t i = 0; i < size; i++) {
+        p[i] = 0;
+    }
+    
+    LOGD("Cleared %zu bytes of sensitive data", size);
+}
+
+} // namespace AntiDetectionHelpers

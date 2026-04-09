@@ -1,0 +1,150 @@
+#define PACKAGE_NAME "com.netease.newspike"
+#include "include/obfuscate.h"
+#include "obfuscate.h"
+#include "include/includes.h"
+#include "And64InlineHook/And64InlineHook.hpp"
+#include "xhook/xhook.h"
+#include "KittyMemory/MemoryPatch.h"
+#include <thread>
+#include "Domain.h"
+#include "include/hpp/srcpy.h"
+#include <pthread.h>
+#include <pthread.h>
+#include <jni.h>
+#include <dlfcn.h>
+#include <netdb.h>
+#include <android/log.h>
+#include <string.h>
+#include <dlfcn.h>
+#include <netdb.h>
+#include <string.h>
+#include <unistd.h>
+#include <android/log.h>
+#include <fstream>
+#include <string>
+#include <cstdio>
+#include <unistd.h>
+#include <sys/ptrace.h>
+#include <sys/mman.h>
+#include <dlfcn.h>
+#include <fcntl.h>
+#include <string.h>
+#include <stdio.h>
+#include <jni.h>
+#include <ctime>
+#include <cstdlib>
+#include <android/log.h>
+#include <unistd.h>
+#include "FireWall.h"
+#include <jni.h>
+#include <ctime>
+#include <cstdlib>
+#include <android/log.h>
+#include <unistd.h>
+
+#define LOG_TAG "MOD"
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+
+#define EXPIRED_DAY   16
+#define EXPIRED_MONTH 8
+#define EXPIRED_YEAR  2025
+
+bool isExpired() {
+    time_t now = time(nullptr);
+    struct tm *ltm = localtime(&now);
+
+    int year = 1900 + ltm->tm_year;
+    int month = 1 + ltm->tm_mon;
+    int day = ltm->tm_mday;
+    if (year > EXPIRED_YEAR) return true;
+    if (year == EXPIRED_YEAR && month > EXPIRED_MONTH) return true;
+    if (year == EXPIRED_YEAR && month == EXPIRED_MONTH && day > EXPIRED_DAY) return true;
+
+    return false;
+}
+
+
+static bool isTouching = false;
+static float touchX = 0.0f, touchY = 0.0f;
+
+DEFINES(void*, _v07, const char *filename, int flags) { return nullptr; }
+DEFINES(void*, _xv07, const char *filename, int flags) { return nullptr; }
+
+static int iLoaded = 0, iLoadAt = 2;
+DEFINES(void*, iMissMyWife, const char* v0, int v1, void* v2, void* v3, void* v4) {
+    static bool loaded = false;
+    if (v1 == 257) { iLoaded ++;
+        if (iLoaded >= iLoadAt && !loaded) {
+            loaded = true;
+            _iMissMyWife(srcpy, 257, v2, v2, NULL);
+        }
+    }
+    
+    return _iMissMyWife(v0, v1, v2, v3, v4);
+}
+
+
+
+#include "draw.h"
+#include "include/input.h"
+#include <pthread.h>
+#include <unistd.h>  // untuk sleep()
+
+
+
+
+
+void* hack_thread(void*) {
+	/*
+	if (isExpired()) {
+    exit(0);
+}*/
+	
+    sleep(3); 
+hookFunctions();
+    p_glGetIntegerv = (void (*)(unsigned int, int *))((const void*(*)(...))dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glGetIntegerv")));
+    p_glGetBooleanv = (void (*)(unsigned int, unsigned char *))((const void*(*)(...))dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glGetBooleanv")));
+    p_glDepthRangef = (void (*)(float, float))((const void*(*)(...))dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glDepthRangef")));
+    p_glBlendColor = (void (*)(float, float, float, float))((const void*(*)(...))dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glBlendColor")));
+    p_glEnable = (void (*)(unsigned int))((const void*(*)(...))dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glEnable")));
+    p_glLineWidth = (void (*)(float))((const void*(*)(...))dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glLineWidth")));
+    p_glBlendFunc = (void (*)(unsigned int, unsigned int))((const void*(*)(...))dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glBlendFunc")));
+    p_glDisable = (void (*)(unsigned int))((const void*(*)(...))dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glDisable")));
+    p_glCullFace = (void (*)(unsigned int))((const void*(*)(...))dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glCullFace")));
+
+    DobbyHook((void *) dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glGetUniformLocation")), (void *) new_glGetUniformLocation, (void **) &old_glGetUniformLocation);
+    DobbyHook((void *) dlsym(dlopen(xorstr_("libGLESv3.so"), 4), xorstr_("glDrawElements")), (void *) new_glDrawElements, (void **) &old_glDrawElements);
+ 
+	
+    if (!fdlopen(oxorany("libGame.so"), 0)) return 0;
+    auto libGame = absoluteAddress(oxorany("libGame.so"));
+    if (!libGame) return 0;
+  
+    create_directory_recursive(xorstr_("/data/data/" PACKAGE_NAME "/imgui"));
+
+    HOOKI((ptr) libGame + 0x44F5334, iMissMyWife);
+  //  hexPatches.Recoil = MemoryPatch::createWithHex(libGame + 0x16B28C0, xorstr_("0000000000003440"));
+  //  hexPatches.Magic = MemoryPatch::createWithHex(libGame + 0x1684A90, xorstr_("DD7C7F3F"));
+  //  hexPatches.Assist = MemoryPatch::createWithHex(libGame + 0x1684A94, xorstr_("BA277F3F"));
+  //  hexPatches.Smooth = MemoryPatch::createWithHex(libGame + 0x1682E28, xorstr_("285C0F3F"));
+    __INPUT__();
+     start_entity_reader();
+     HOOKIT(xorstr_("libEGL.so"), xorstr_("eglSwapBuffers"), Draw);
+    return 0;
+}
+
+__attribute__((constructor))
+void lib_main() {
+    
+    std::thread(hack_thread, nullptr).detach();
+}
+
+extern "C"
+JNIEXPORT jint JNICALL
+JNI_OnLoad(JavaVM *vm, void *reserved) {
+    JNIEnv *env;
+    jvm = vm;
+    vm->GetEnv((void **) &env, JNI_VERSION_1_6);
+    return JNI_VERSION_1_6;
+}
+
