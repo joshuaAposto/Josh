@@ -1,0 +1,21 @@
+{
+  "name": "sacredbs-bloodstrike",
+  "version": "1.0.0",
+  "description": "SacRedBS BloodStrike — Key System & Landing Page",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "author": "SacRedBS",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.4",
+    "axios": "^1.14.0",
+    "cors": "^2.8.6",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "uuid": "^9.0.0"
+  }
+}

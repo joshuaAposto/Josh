@@ -8,19 +8,19 @@ const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 
 const app = express();
-const port = process.env.PORT || 5000;
+const port = process.env.PORT || 3000;
 
 app.use(express.json());
 
 // ==========================================
-// Configuration (hardcoded)
+// Configuration
 // ==========================================
-const DATABASE_URL        = 'postgresql://neondb_owner:npg_hkG8lf3zrLKF@ep-cool-silence-anfi0aab-pooler.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
-const LOOT_LINK_API_TOKEN = '22044aa0aad01a7297c21a339ae4243b50cd62d12e67e0e0d712c1d6ab3fcd4f';
-const LOOT_LINK_BASE_URL  = 'https://lootdest.org/s?muMuGbEY';
-const YOUR_DOMAIN         = process.env.YOUR_DOMAIN || 'https://bskey.vercel.app';
-const SERVER_SECRET       = 'SJSIDIIDJEJRKRKRKKRDIIDIDKDKDKDKFKTJTJJFJFJJFFKFKKFKFKFKFIDIR';
-const ADMIN_PASSWORD      = 'joshua';
+const DATABASE_URL        = process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_hkG8lf3zrLKF@ep-cool-silence-anfi0aab-pooler.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
+const LOOT_LINK_API_TOKEN = process.env.LOOT_LINK_API_TOKEN || '22044aa0aad01a7297c21a339ae4243b50cd62d12e67e0e0d712c1d6ab3fcd4f';
+const LOOT_LINK_BASE_URL  = process.env.LOOT_LINK_BASE_URL  || 'https://lootdest.org/s?muMuGbEY';
+const YOUR_DOMAIN         = process.env.YOUR_DOMAIN         || 'https://bskey.vercel.app';
+const SERVER_SECRET       = process.env.SERVER_SECRET       || 'SJSIDIIDJEJRKRKRKKRDIIDIDKDKDKDKFKTJTJJFJFJJFFKFKKFKFKFKFIDIR';
+const ADMIN_PASSWORD      = process.env.ADMIN_PASSWORD      || 'joshua';
 
 const sql = neon(DATABASE_URL);
 
@@ -48,7 +48,6 @@ async function initDb() {
             created_at  BIGINT
         )
     `;
-    // Ensure no hwid unique constraint exists (allows VIP + free keys for same device)
     try {
         await sql`ALTER TABLE keys DROP CONSTRAINT IF EXISTS keys_hwid_unique`;
     } catch (_) {}
@@ -86,24 +85,19 @@ function getClientIp(req) {
 // Routes
 // ==========================================
 
-// Landing page — no blanket signature check
-// Handles: /?hwid=X&signature=S  AND  /?generated_key=X&success=true
 app.get('/', generateLimiter, (req, res) => {
     const { hwid, signature, success, generated_key } = req.query;
 
-    // Success redirect after ad — serve page directly
     if (success === 'true' && generated_key) {
         return res.sendFile(path.join(__dirname, 'public', 'index.html'));
     }
 
-    // Mod menu access — require valid signature
     if (!hwid || !signature) return res.status(403).send('Missing Security Parameters.');
     if (!verifySignature(hwid, signature)) return res.status(403).send('Bypass Attempt Detected.');
 
     return res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Step 2: User taps GENERATE KEY → create session → return LootLabs ad URL as JSON
 app.get('/generateKey', generateLimiter, async (req, res) => {
     const { hwid, signature } = req.query;
     if (!hwid || !signature) return res.json({ error: 'Missing Security Parameters.' });
@@ -113,7 +107,6 @@ app.get('/generateKey', generateLimiter, async (req, res) => {
     const clientIp = getClientIp(req);
 
     try {
-        // Return existing valid FREE key directly (no redirect needed)
         const existing = await sql`
             SELECT key_string FROM keys
             WHERE hwid = ${hwid}
@@ -126,7 +119,6 @@ app.get('/generateKey', generateLimiter, async (req, res) => {
             return res.json({ key: existing[0].key_string });
         }
 
-        // Create session
         const sessionId = uuidv4();
         await sql`
             INSERT INTO sessions (session_id, hwid, user_ip, created_at)
@@ -134,7 +126,6 @@ app.get('/generateKey', generateLimiter, async (req, res) => {
             ON CONFLICT (session_id) DO NOTHING
         `;
 
-        // Get LootLabs encrypted link
         const checkpointUrl  = `${YOUR_DOMAIN}/checkpoint?session_id=${sessionId}`;
         const lootLabsApiUrl = `https://creators.lootlabs.gg/api/public/url_encryptor?destination_url=${encodeURIComponent(checkpointUrl)}&api_token=${LOOT_LINK_API_TOKEN}`;
 
@@ -152,7 +143,6 @@ app.get('/generateKey', generateLimiter, async (req, res) => {
     }
 });
 
-// Step 3: After ad → generate key
 app.get('/checkpoint', async (req, res) => {
     const { session_id } = req.query;
     if (!session_id) return res.status(400).send('Missing session. Please go back and try again.');
@@ -180,7 +170,6 @@ app.get('/checkpoint', async (req, res) => {
     }
 });
 
-// Helper: build a signed verify response (MD5 seal + timestamp for anti-crack / anti-replay)
 function buildVerifyResponse(isSuccess, message, hwid) {
     const timestamp  = Date.now().toString();
     const dataToHash = SERVER_SECRET + isSuccess.toString() + timestamp + hwid;
@@ -188,7 +177,6 @@ function buildVerifyResponse(isSuccess, message, hwid) {
     return { success: isSuccess, message, ts: timestamp, sig };
 }
 
-// Verify — handles both FREE keys (hwid already set) and VIP keys (hwid null = first activation)
 app.get('/verify', async (req, res) => {
     const { key, hwid } = req.query;
     if (!key || !hwid) {
@@ -212,14 +200,12 @@ app.get('/verify', async (req, res) => {
             return res.json(buildVerifyResponse(false, 'Key expired', hwid));
         }
 
-        // Compute days remaining
         const msLeft        = Math.max(0, Number(found.expires_at) - Date.now());
         const daysRemaining = Math.ceil(msLeft / 86400000);
         const username      = found.username || 'USER';
         const isFreeKey     = found.username === 'FREE_1DAY';
 
         if (isFreeKey) {
-            // FREE key: device-locked — hwid must match exactly; NULL hwid means admin reset it (must regenerate)
             if (!found.hwid || found.hwid !== hwid) {
                 const reason = !found.hwid
                     ? 'Free key was reset. Generate a new one at bskey.vercel.app'
@@ -230,7 +216,6 @@ app.get('/verify', async (req, res) => {
             return res.json({ ...payload, days_remaining: daysRemaining, username });
         }
 
-        // VIP key: NO device binding — any phone/device can use it freely
         const payload = buildVerifyResponse(true, `Welcome back, ${username}! ${daysRemaining}d left`, hwid);
         return res.json({ ...payload, days_remaining: daysRemaining, username });
 
@@ -246,14 +231,12 @@ app.get('/verify', async (req, res) => {
 
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 
-// Admin login
 app.post('/admin/login', (req, res) => {
     const { password } = req.body;
     if (password !== ADMIN_PASSWORD) return res.json({ success: false });
     res.json({ success: true });
 });
 
-// Admin stats
 app.get('/admin/stats', async (req, res) => {
     if (!checkAdmin(req, res)) return;
     try {
@@ -269,7 +252,6 @@ app.get('/admin/stats', async (req, res) => {
     }
 });
 
-// List all keys
 app.get('/admin/keys', async (req, res) => {
     if (!checkAdmin(req, res)) return;
     try {
@@ -303,7 +285,6 @@ app.get('/admin/keys', async (req, res) => {
     }
 });
 
-// Generate VIP key (admin creates key without hwid — user activates on first login)
 app.post('/admin/generate', async (req, res) => {
     if (!checkAdmin(req, res)) return;
     try {
@@ -320,7 +301,6 @@ app.post('/admin/generate', async (req, res) => {
             `;
             generatedKeys.push(keyString);
         }
-        // Return single-key format (for UI) and full list
         res.json({ success: true, key: generatedKeys[0], expiresAt, keys: generatedKeys });
     } catch (e) {
         console.error('generate error:', e.message);
@@ -328,7 +308,6 @@ app.post('/admin/generate', async (req, res) => {
     }
 });
 
-// Revoke key
 app.post('/admin/revoke', async (req, res) => {
     if (!checkAdmin(req, res)) return;
     try {
@@ -340,7 +319,6 @@ app.post('/admin/revoke', async (req, res) => {
     }
 });
 
-// Delete key
 app.post('/admin/delete', async (req, res) => {
     if (!checkAdmin(req, res)) return;
     try {
@@ -352,9 +330,6 @@ app.post('/admin/delete', async (req, res) => {
     }
 });
 
-// Reset HWID binding
-// - FREE_1DAY keys: deleted entirely so user must go through the ad flow to get a new key
-// - VIP keys: hwid set to NULL so a new device can activate the key
 app.post('/admin/reset-hwid', async (req, res) => {
     if (!checkAdmin(req, res)) return;
     try {
@@ -367,11 +342,9 @@ app.post('/admin/reset-hwid', async (req, res) => {
         const isFreeKey = rows[0].username === 'FREE_1DAY';
 
         if (isFreeKey) {
-            // Delete free key — user must regenerate via the ad flow
             await sql`DELETE FROM keys WHERE key_string = ${key}`;
             return res.json({ success: true, message: 'Free key deleted — user must regenerate a new one via the ad flow' });
         } else {
-            // Unbind VIP key so a new device can activate it
             await sql`UPDATE keys SET hwid = NULL WHERE key_string = ${key}`;
             return res.json({ success: true, message: 'HWID unbound — key can now be activated on a new device' });
         }
@@ -380,7 +353,6 @@ app.post('/admin/reset-hwid', async (req, res) => {
     }
 });
 
-// Renew key — extends expiry by N days; works on expired AND active keys; clears revoked flag
 app.post('/admin/renew', async (req, res) => {
     if (!checkAdmin(req, res)) return;
     try {
@@ -392,7 +364,6 @@ app.post('/admin/renew', async (req, res) => {
 
         const now        = Date.now();
         const currentExp = Number(rows[0].expires_at);
-        // If still active, extend from current expiry; if expired, restart from now
         const base       = currentExp > now ? currentExp : now;
         const newExpiry  = base + days * 86400000;
 
@@ -411,14 +382,10 @@ app.post('/admin/renew', async (req, res) => {
     }
 });
 
-// Static files (after route handlers)
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ==========================================
-// Start (local only)
-// ==========================================
 if (process.env.NODE_ENV !== 'production') {
-    app.listen(port, () => console.log(`Server running on port ${port}`));
+    app.listen(port, () => console.log(`BS Server running on port ${port}`));
 }
 
 module.exports = app;
