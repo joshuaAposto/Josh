@@ -1,10 +1,5 @@
 #pragma once
 
-#include <stdint.h>
-#include <string>
-#include <map>
-#include <cstring>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -21,32 +16,32 @@ struct Backup3 {
     void* x, *y, *z;
 };
 
-static std::map<std::string, Backup3> _CACHEDB;
-static inline void Backup(uintptr_t pointer) {
-    void* x = nullptr, *y = nullptr, *z = nullptr;
-
+map<string, Backup3> _CACHEDB;
+void Backup(ptr pointer) {
+    void* x, *y, *z;
+    
     memcpy( &x, (void*)(pointer), 8);
     memcpy( &y, (void*)(pointer + 0x4 * 2), 8);
     memcpy( &z, (void*)(pointer + 0x4 * 3), 8);
-
-    std::string o = std::to_string(pointer);
-
+    
+    string o = to_string(pointer);
+    
     _CACHEDB[o] = {x, y, z};
 }
-static inline void Restore(uintptr_t pointer) {
-    std::string o = std::to_string(pointer);
-    if (_CACHEDB.count(o) < 1)
+void Restore(ptr pointer) {
+    string o = to_string(pointer);
+    if (_CACHEDB.count(o)<1)
         return;
-
+    
     auto B = _CACHEDB[o];
     Backup(pointer);
-    memcpy( (void*)(pointer), &B.x, 8 );
-    memcpy( (void*)(pointer + 0x4 * 2), &B.y, 8 );
-    memcpy( (void*)(pointer + 0x4 * 3), &B.z, 8 );
+    EditMemory( (void*)(pointer), 8, &B.x );
+    EditMemory( (void*)(pointer + 0x4 * 2), 8, &B.y );
+    EditMemory( (void*)(pointer + 0x4 * 3), 8, &B.z );
 }
 
-static inline void _A64HookF(void *const symbol, void *const replace, void **result) {
-    //Backup((uintptr_t)symbol);
+void _A64HookF(void *const symbol, void *const replace, void **result) {
+    //Backup((ptr)symbol);
     A64HookFunction(symbol, replace, result);
 }
 

@@ -343,7 +343,7 @@
         }
 
         // ── Auto-check for existing valid key on page load ──────
-        // Uses /checkKey (lightweight) — does NOT create a session or call LootLabs
+        // Uses /checkKey (lightweight) so the rate limit is NOT consumed on page load
         async function autoCheckKey() {
             statusText.innerHTML = `
                 <svg class="spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -355,7 +355,7 @@
 
             try {
                 const controller = new AbortController();
-                const timeout = setTimeout(() => controller.abort(), 15000);
+                const timeout = setTimeout(() => controller.abort(), 10000);
                 const resp = await fetch(`/checkKey?hwid=${encodeURIComponent(hwid)}&signature=${encodeURIComponent(signature)}`, {
                     signal: controller.signal
                 });
@@ -364,15 +364,17 @@
                 if (!resp.ok) throw new Error('Server error ' + resp.status);
                 const data = await resp.json();
 
-                if (data.key) {
+                if (data.valid && data.key) {
+                    // Existing valid key — show immediately, no redirect needed
                     showKey(data.key);
                     return;
                 }
 
-                // No key or error — show button so user can start the ad flow
+                // No valid key (expired, never generated, or error) — show button
                 showReadyButton();
 
             } catch (err) {
+                // Network issue or timeout — show button so user can try manually
                 showReadyButton();
             }
         }

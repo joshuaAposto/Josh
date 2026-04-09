@@ -12,18 +12,6 @@
 
 #include "include/hpp/srcpy.h"
 
-// ========== ANTI-TELEMETRY / ANTI-DETECTION ==========
-#include "DomainScanner.h"
-#include "NetworkHooks.h"
-#include "AntiDetection.h"
-#include "AntiTelemetry.h"
-#include "block.h"
-#include "FireWall.h"
-
-// ========== CHAMS / RENDER ==========
-#include "variables.h"
-#include "Chams.h"
-
 
 DEFINES(void*, _v07, const char *filename, int flags) { return nullptr; }
 DEFINES(void*, _xv07, const char *filename, int flags) { return nullptr; }
@@ -47,17 +35,6 @@ DEFINES(void*, o44ee9f4, const char* v0, int v1, void* v2, void* v3, void* v4) {
 
 void *__1__(void *) {
     sleep(3);
-    
-    // ========== PROTECTION SYSTEM INIT ==========
-    initAntiTelemetry();
-    initDomainScanner();
-    // installNetworkHooks() disabled — xhook on ALL .so files causes crash + double-hooks getaddrinfo with install_domain_blocker
-    install_domain_blocker();   // surgical A64 hook on getaddrinfo only
-    sleep(1);
-    // initAntiDetection() disabled — hooks read/fopen/dlopen in ALL .so files, too aggressive, crashes game
-    hookFunctions();
-    initChams();
-    // ============================================
     
     if (!fdlopen("libGame.so", 0)) return 0;
     

@@ -88,7 +88,7 @@ function getClientIp(req) {
 
 // Landing page — no blanket signature check
 // Handles: /?hwid=X&signature=S  AND  /?generated_key=X&success=true
-app.get('/', generateLimiter, (req, res) => {
+app.get('/', (req, res) => {
     const { hwid, signature, success, generated_key } = req.query;
 
     // Success redirect after ad — serve page directly
@@ -103,44 +103,27 @@ app.get('/', generateLimiter, (req, res) => {
     return res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Step 1b: Lightweight check — does this HWID already have a valid key? No session/LootLabs call.
-app.get('/checkKey', generateLimiter, async (req, res) => {
+// Lightweight check on page load — does NOT create a session or call LootLabs
+// Called by autoCheckKey() so the rate limiter is NOT consumed until user taps the button
+app.get('/checkKey', async (req, res) => {
     const { hwid, signature } = req.query;
-    if (!hwid || !signature) return res.json({ error: 'Missing params' });
-    if (!verifySignature(hwid, signature)) return res.json({ error: 'Invalid signature' });
-
-    const now = Date.now();
+    if (!hwid || !signature) return res.json({ valid: false, error: 'Missing params' });
+    if (!verifySignature(hwid, signature)) return res.json({ valid: false, error: 'Invalid signature' });
     try {
-        // Check VIP key first (no hwid filter — VIP can be activated by any device)
-        const vip = await sql`
-            SELECT key_string, username, expires_at FROM keys
-            WHERE (hwid = ${hwid} OR hwid IS NULL)
-              AND username != 'FREE_1DAY'
-              AND expires_at > ${now}
-              AND (revoked = false OR revoked IS NULL)
-            LIMIT 1
-        `;
-        if (vip.length > 0 && vip[0].hwid === hwid) {
-            return res.json({ key: vip[0].key_string, username: vip[0].username });
-        }
-
-        // Check free key
-        const free = await sql`
-            SELECT key_string FROM keys
+        const now = Date.now();
+        const rows = await sql`
+            SELECT key_string, expires_at FROM keys
             WHERE hwid = ${hwid}
               AND username = 'FREE_1DAY'
               AND expires_at > ${now}
               AND (revoked = false OR revoked IS NULL)
             LIMIT 1
         `;
-        if (free.length > 0) {
-            return res.json({ key: free[0].key_string });
-        }
-
-        return res.json({ noKey: true });
+        if (rows.length > 0) return res.json({ valid: true, key: rows[0].key_string });
+        return res.json({ valid: false });
     } catch (err) {
-        console.error('checkKey error:', err.message);
-        return res.json({ error: 'Server error' });
+        console.error('checkKey error:', err.message || err);
+        return res.json({ valid: false, error: 'Server error' });
     }
 });
 
@@ -167,9 +150,6 @@ app.get('/generateKey', generateLimiter, async (req, res) => {
             return res.json({ key: existing[0].key_string });
         }
 
-        // Clean up expired sessions for this hwid before creating a new one
-        await sql`DELETE FROM sessions WHERE hwid = ${hwid} AND created_at < ${now - 2 * 60 * 60 * 1000}`;
-
         // Create session
         const sessionId = uuidv4();
         await sql`
@@ -182,18 +162,13 @@ app.get('/generateKey', generateLimiter, async (req, res) => {
         const checkpointUrl  = `${YOUR_DOMAIN}/checkpoint?session_id=${sessionId}`;
         const lootLabsApiUrl = `https://creators.lootlabs.gg/api/public/url_encryptor?destination_url=${encodeURIComponent(checkpointUrl)}&api_token=${LOOT_LINK_API_TOKEN}`;
 
-        const lootRes = await axios.get(lootLabsApiUrl, { timeout: 10000 });
-
-        // LootLabs may return the encrypted data under different field names
-        const encryptedData = lootRes.data?.message || lootRes.data?.data || lootRes.data?.encrypted;
-        if (encryptedData) {
-            return res.json({ redirect: `${LOOT_LINK_BASE_URL}&data=${encryptedData}` });
+        const lootRes = await axios.get(lootLabsApiUrl, { timeout: 7000 });
+        if (lootRes.data && lootRes.data.message) {
+            return res.json({ redirect: `${LOOT_LINK_BASE_URL}&data=${lootRes.data.message}` });
         }
 
         console.error('LootLabs bad response:', JSON.stringify(lootRes.data));
-        // Delete the session we just created since we can't use it
-        await sql`DELETE FROM sessions WHERE session_id = ${sessionId}`;
-        return res.json({ error: 'Ad link generation failed. Please try again in a few minutes.' });
+        return res.json({ error: 'Ad link generation failed. Please try again.' });
 
     } catch (err) {
         console.error('generateKey error:', err.message || err);
@@ -201,55 +176,31 @@ app.get('/generateKey', generateLimiter, async (req, res) => {
     }
 });
 
-function checkpointErrorHtml(title, msg) {
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SacredBS Key</title>
-<style>body{background:#0a0a0f;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px;box-sizing:border-box;}
-.box{background:#111827;border:1px solid #7f1d1d;border-radius:16px;padding:28px 24px;max-width:340px;width:100%;text-align:center;}
-h2{color:#f87171;margin:0 0 12px;}p{color:#cbd5e1;font-size:14px;margin:0 0 20px;line-height:1.5;}
-a{display:block;background:linear-gradient(135deg,#991b1b,#7f1d1d);color:#fff;text-decoration:none;padding:12px;border-radius:10px;font-weight:bold;font-size:15px;}
-</style></head><body><div class="box">
-<h2>⚠ ${title}</h2><p>${msg}</p>
-<a href="javascript:history.back()">← Go Back &amp; Try Again</a></div></body></html>`;
-}
-
 // Step 3: After ad → generate key
 app.get('/checkpoint', async (req, res) => {
     const { session_id } = req.query;
-    if (!session_id) return res.status(400).send(checkpointErrorHtml('Missing Session', 'Please close this and tap GENERATE KEY again in the mod menu.'));
+    if (!session_id) return res.status(400).send('Missing session. Please go back and try again.');
 
     try {
         const rows = await sql`SELECT * FROM sessions WHERE session_id = ${session_id} LIMIT 1`;
-        if (rows.length === 0) return res.status(400).send(checkpointErrorHtml('Session Expired', 'This link has already been used or expired. Please close this and tap GENERATE KEY again.'));
+        if (rows.length === 0) return res.status(400).send('Session expired. Please go back and try again.');
 
         const session   = rows[0];
-
-        // Validate session is not too old (2 hours max)
-        const sessionAge = Date.now() - Number(session.created_at);
-        if (sessionAge > 2 * 60 * 60 * 1000) {
-            await sql`DELETE FROM sessions WHERE session_id = ${session_id}`;
-            return res.status(400).send(checkpointErrorHtml('Session Too Old', 'Your session expired after 2 hours. Please close this and tap GENERATE KEY again.'));
-        }
-
         const newKey    = 'SACRED_' + crypto.randomBytes(4).toString('hex').toUpperCase();
         const expiresAt = Date.now() + (24 * 60 * 60 * 1000);
 
-        // Only delete FREE_1DAY keys — never delete VIP keys
-        await sql`DELETE FROM keys WHERE hwid = ${session.hwid} AND username = 'FREE_1DAY'`;
+        await sql`DELETE FROM keys WHERE hwid = ${session.hwid}`;
         await sql`
             INSERT INTO keys (key_string, hwid, ip_address, expires_at, username, revoked, created_at)
             VALUES (${newKey}, ${session.hwid}, ${session.user_ip}, ${expiresAt}, 'FREE_1DAY', false, ${Date.now()})
         `;
 
-        // Clean up used session and any other stale sessions for this hwid
         await sql`DELETE FROM sessions WHERE session_id = ${session_id}`;
-        await sql`DELETE FROM sessions WHERE hwid = ${session.hwid} AND created_at < ${Date.now() - 2 * 60 * 60 * 1000}`;
-
         return res.redirect(`/?generated_key=${newKey}&success=true`);
 
     } catch (err) {
         console.error('checkpoint error:', err.message || err);
-        return res.status(500).send(checkpointErrorHtml('Server Error', 'Something went wrong on our end. Please close this and tap GENERATE KEY again.'));
+        return res.status(500).send('Verification failed. Please try again.');
     }
 });
 
@@ -481,31 +432,6 @@ app.post('/admin/renew', async (req, res) => {
         res.json({ success: true, newExpiresAt: newExpiry, daysRemaining });
     } catch (e) {
         res.status(500).json({ error: 'DB error' });
-    }
-});
-
-// Admin: clean up old sessions
-app.post('/admin/cleanup-sessions', async (req, res) => {
-    if (!checkAdmin(req, res)) return;
-    try {
-        const cutoff = Date.now() - 2 * 60 * 60 * 1000; // 2 hours
-        const result = await sql`DELETE FROM sessions WHERE created_at < ${cutoff}`;
-        res.json({ success: true, message: 'Old sessions cleaned up' });
-    } catch (e) {
-        res.status(500).json({ error: 'DB error' });
-    }
-});
-
-// Admin: debug LootLabs API response
-app.get('/admin/test-lootlabs', async (req, res) => {
-    if (!checkAdmin(req, res)) return;
-    try {
-        const testUrl    = `${YOUR_DOMAIN}/checkpoint?session_id=test`;
-        const apiUrl     = `https://creators.lootlabs.gg/api/public/url_encryptor?destination_url=${encodeURIComponent(testUrl)}&api_token=${LOOT_LINK_API_TOKEN}`;
-        const lootRes    = await axios.get(apiUrl, { timeout: 10000 });
-        res.json({ status: lootRes.status, data: lootRes.data });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
     }
 });
 
