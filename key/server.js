@@ -1,6 +1,5 @@
 const express = require('express');
 const { neon } = require('@neondatabase/serverless');
-const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
 const path = require('path');
@@ -16,8 +15,7 @@ app.use(express.json());
 // Configuration (hardcoded)
 // ==========================================
 const DATABASE_URL        = 'postgresql://neondb_owner:npg_hkG8lf3zrLKF@ep-cool-silence-anfi0aab-pooler.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
-const LOOT_LINK_API_TOKEN = '22044aa0aad01a7297c21a339ae4243b50cd62d12e67e0e0d712c1d6ab3fcd4f';
-const LOOT_LINK_BASE_URL  = 'https://lootdest.org/s?muMuGbEY';
+const LINKVERTISE_BASE_URL = 'https://link-target.net/4948446/Uy0Ju98f5I7Q';
 const YOUR_DOMAIN         = 'https://bskey.vercel.app';
 const SERVER_SECRET       = 'SJSIDIIDJEJRKRKRKKRDIIDIDKDKDKDKFKTJTJJFJFJJFFKFKKFKFKFKFIDIR';
 const ADMIN_PASSWORD      = 'joshua';
@@ -127,7 +125,7 @@ app.get('/checkKey', async (req, res) => {
     }
 });
 
-// Step 2: User taps GENERATE KEY → create session → return LootLabs ad URL as JSON
+// Step 2: User taps GENERATE KEY → create session → return Linkvertise ad URL
 app.get('/generateKey', generateLimiter, async (req, res) => {
     const { hwid, signature } = req.query;
     if (!hwid || !signature) return res.json({ error: 'Missing Security Parameters.' });
@@ -158,21 +156,15 @@ app.get('/generateKey', generateLimiter, async (req, res) => {
             ON CONFLICT (session_id) DO NOTHING
         `;
 
-        // Get LootLabs encrypted link
-        const checkpointUrl  = `${YOUR_DOMAIN}/checkpoint?session_id=${sessionId}`;
-        const lootLabsApiUrl = `https://creators.lootlabs.gg/api/public/url_encryptor?destination_url=${encodeURIComponent(checkpointUrl)}&api_token=${LOOT_LINK_API_TOKEN}`;
+        // Build Linkvertise ad URL — append checkpoint as the destination after the ad
+        const checkpointUrl = `${YOUR_DOMAIN}/checkpoint?session_id=${sessionId}`;
+        const adUrl = `${LINKVERTISE_BASE_URL}?r=${encodeURIComponent(checkpointUrl)}`;
 
-        const lootRes = await axios.get(lootLabsApiUrl, { timeout: 7000 });
-        if (lootRes.data && lootRes.data.message) {
-            return res.json({ redirect: `${LOOT_LINK_BASE_URL}&data=${lootRes.data.message}` });
-        }
-
-        console.error('LootLabs bad response:', JSON.stringify(lootRes.data));
-        return res.json({ error: 'Ad link generation failed. Please try again.' });
+        return res.json({ redirect: adUrl });
 
     } catch (err) {
         console.error('generateKey error:', err.message || err);
-        return res.json({ error: 'Server timeout. Please try again.' });
+        return res.json({ error: 'Server error. Please try again.' });
     }
 });
 
