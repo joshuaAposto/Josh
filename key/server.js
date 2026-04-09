@@ -189,13 +189,14 @@ app.get('/checkpoint', async (req, res) => {
         const newKey    = 'SACRED_' + crypto.randomBytes(4).toString('hex').toUpperCase();
         const expiresAt = Date.now() + (24 * 60 * 60 * 1000);
 
-        await sql`DELETE FROM keys WHERE hwid = ${session.hwid}`;
+        await sql`DELETE FROM keys WHERE hwid = ${session.hwid} AND username = 'FREE_1DAY'`;
         await sql`
             INSERT INTO keys (key_string, hwid, ip_address, expires_at, username, revoked, created_at)
             VALUES (${newKey}, ${session.hwid}, ${session.user_ip}, ${expiresAt}, 'FREE_1DAY', false, ${Date.now()})
         `;
 
         await sql`DELETE FROM sessions WHERE session_id = ${session_id}`;
+        await sql`DELETE FROM sessions WHERE created_at < ${Date.now() - (60 * 60 * 1000)}`;
         return res.redirect(`/?generated_key=${newKey}&success=true`);
 
     } catch (err) {
