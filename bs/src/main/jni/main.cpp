@@ -47,24 +47,6 @@ PyRun_StringFlags_t PyRun_StringFlags;
 #define LOG_TAG "MOD"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 
-#define EXPIRED_DAY   16
-#define EXPIRED_MONTH 8
-#define EXPIRED_YEAR  2025
-
-bool isExpired() {
-    time_t now = time(nullptr);
-    struct tm *ltm = localtime(&now);
-
-    int year = 1900 + ltm->tm_year;
-    int month = 1 + ltm->tm_mon;
-    int day = ltm->tm_mday;
-    if (year > EXPIRED_YEAR) return true;
-    if (year == EXPIRED_YEAR && month > EXPIRED_MONTH) return true;
-    if (year == EXPIRED_YEAR && month == EXPIRED_MONTH && day > EXPIRED_DAY) return true;
-
-    return false;
-}
-
 // Struktur untuk menyimpan informasi weapon & skiny
 struct WeaponSkinInfo {
     int weaponId;
@@ -164,7 +146,7 @@ DEFINES(void*, iMissMyWife, const char* v0, int v1, void* v2, void* v3, void* v4
     return _iMissMyWife(v0, v1, v2, v3, v4);
 }
 
-	
+        
 // ========== VERIFICATION FUNCTION ==========
 bool verifyProtectionActive() {
     LOGI("========================================");
@@ -240,7 +222,7 @@ for (const auto& test : tests) {
 
 // ========== MAIN HACK THREAD ==========
 void* hack_thread(void*) {
-	LOGI("[INIT] Hack thread started");
+        LOGI("[INIT] Hack thread started");
     LOGI("========================================");
     LOGI("🚀 MOD INITIALIZATION STARTED");
     LOGI("========================================");
@@ -274,8 +256,8 @@ void* hack_thread(void*) {
     // ========== STEP 3: INSTALL NETWORK HOOKS ==========
     LOGI("[3/4] Installing Network Hooks...");
     installNetworkHooks();
-	
-	if (globalAntiTelemetry && globalAntiTelemetry->getEnabled()) {
+        
+        if (globalAntiTelemetry && globalAntiTelemetry->getEnabled()) {
         TELE_LOGI("========================================");
         TELE_LOGI("✓ Protection System Initialized!");
         TELE_LOGI("✓ Network hooks installed");
@@ -305,7 +287,7 @@ void* hack_thread(void*) {
     LOGI("========================================");
     LOGI("🎮 LOADING GAME HOOKS");
     LOGI("========================================");
-	
+        
     hookFunctions();
     
     // GL Function pointers
@@ -362,9 +344,9 @@ void* hack_thread(void*) {
 }
 
 // ========== CONSTRUCTOR (EARLIEST INIT POINT) ==========
-__attribute__((constructor))	
+__attribute__((constructor))    
     void lib_main() {
-	
+        
     // Seed random for anti-pattern
     srand(time(nullptr));
     

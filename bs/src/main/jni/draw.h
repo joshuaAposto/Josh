@@ -54,6 +54,168 @@ const char* INI_PATH = xorstr_("/data/data/" PACKAGE_NAME "/imgui/.ini");
 #include "AntiTelemetry.h"     // KEDUA - bisa pakai RealTimeMonitor
 #include "DomainScanner.h"     // KETIGA
 #include "NetworkHooks.h"
+#include <atomic>
+#include <thread>
+#include <chrono>
+#include <cmath>
+#include <sys/system_properties.h>
+
+// =====================================================================
+// SACREDBS KEY SYSTEM - bskey.vercel.app
+// =====================================================================
+
+static std::atomic<uint32_t> auth_state(0x8A8A8A8A);
+const uint32_t AUTH_SUCCESS = 0x1337BABE;
+static std::atomic<bool> is_authenticating(false);
+static char user_input_key[64] = "";
+static char auth_status[256] = "Waiting for key...";
+static std::string cached_uuid = "";
+static int   vip_days_remaining = 0;
+static bool  vip_days_received  = false;
+static char  vip_username_str[64] = "";
+
+std::string getDeviceName() {
+    char model[PROP_VALUE_MAX];
+    __system_property_get(xorstr_("ro.product.model"), model);
+    return std::string(model);
+}
+
+std::string getDeviceArchitecture() {
+    char abi[PROP_VALUE_MAX];
+    __system_property_get(xorstr_("ro.product.cpu.abi"), abi);
+    std::string arch(abi);
+    arch.erase(std::remove(arch.begin(), arch.end(), '\n'), arch.end());
+    return arch.empty() ? "Unknown Arch" : arch;
+}
+
+std::string GetCleanUUID() {
+    JNIEnv *env;
+    jvm->AttachCurrentThread(&env, NULL);
+    jclass activityThreadClass = env->FindClass(OBFUSCATE("android/app/ActivityThread"));
+    jmethodID currentActivityThreadMethod = env->GetStaticMethodID(activityThreadClass, OBFUSCATE("currentActivityThread"), OBFUSCATE("()Landroid/app/ActivityThread;"));
+    jobject sCurrentActivityThread = env->CallStaticObjectMethod(activityThreadClass, currentActivityThreadMethod);
+    jmethodID getApplicationMethod = env->GetMethodID(activityThreadClass, OBFUSCATE("getApplication"), OBFUSCATE("()Landroid/app/Application;"));
+    jobject mInitialApplication = env->CallObjectMethod(sCurrentActivityThread, getApplicationMethod);
+    std::string raw_id = GetAndroidID(env, mInitialApplication);
+    raw_id += GetDeviceModel(env);
+    raw_id += GetDeviceBrand(env);
+    std::string final_uuid = GetDeviceUniqueIdentifier(env, raw_id.c_str());
+    jvm->DetachCurrentThread();
+    return final_uuid;
+}
+
+std::string GetMD5Hash(const std::string& input) {
+    return md5(input);
+}
+
+std::string GenerateSecuritySignature(const std::string& hwid) {
+    std::string secret = oxorany("SJSIDIIDJEJRKRKRKKRDIIDIDKDKDKDKFKTJTJJFJFJJFFKFKKFKFKFKFIDIR");
+    std::string string_to_hash = "hwid=" + hwid + secret;
+    return md5(string_to_hash);
+}
+
+std::string GetKeyGeneratorLink(const std::string& uuid) {
+    std::string signature = GenerateSecuritySignature(uuid);
+    return std::string(oxorany("https://bskey.vercel.app/?hwid=")) + uuid + oxorany("&signature=") + signature;
+}
+
+bool VerifyKeyWithServer(const std::string& key, const std::string& uuid) {
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        snprintf(auth_status, sizeof(auth_status), oxorany("Error: CURL failed to initialize"));
+        return false;
+    }
+    char errbuf[CURL_ERROR_SIZE];
+    errbuf[0] = 0;
+    char* escaped_key = curl_easy_escape(curl, key.c_str(), key.length());
+    char* escaped_uuid = curl_easy_escape(curl, uuid.c_str(), uuid.length());
+    if (!escaped_key || !escaped_uuid) {
+        if(escaped_key) curl_free(escaped_key);
+        if(escaped_uuid) curl_free(escaped_uuid);
+        curl_easy_cleanup(curl);
+        snprintf(auth_status, sizeof(auth_status), oxorany("Error: URL Encoding failed"));
+        return false;
+    }
+    std::string url = oxorany("https://bskey.vercel.app/verify?key=");
+    url += escaped_key;
+    url += oxorany("&hwid=");
+    url += escaped_uuid;
+    curl_free(escaped_key);
+    curl_free(escaped_uuid);
+    struct MemoryStruct chunk{};
+    chunk.memory = (char *)malloc(1);
+    chunk.size = 0;
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, oxorany("libcurl-agent/1.0"));
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
+    curl_easy_setopt(curl, CURLOPT_DNS_SERVERS, oxorany("8.8.8.8,8.8.4.4"));
+    curl_easy_setopt(curl, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+    CURLcode res = curl_easy_perform(curl);
+    bool isSuccess = false;
+    if (res == CURLE_OK) {
+        try {
+            auto data = json::parse(chunk.memory);
+            if (data.contains(oxorany("sig")) && data.contains(oxorany("ts"))) {
+                bool        server_bool = data[oxorany("success")].get<bool>();
+                std::string server_msg  = data.value(oxorany("message"), std::string(""));
+                std::string server_ts   = data[oxorany("ts")].get<std::string>();
+                std::string server_sig  = data[oxorany("sig")].get<std::string>();
+                std::string SALT        = oxorany("SJSIDIIDJEJRKRKRKKRDIIDIDKDKDKDKFKTJTJJFJFJJFFKFKKFKFKFKFIDIR");
+                std::string rawData     = SALT + (server_bool ? oxorany("true") : oxorany("false")) + server_ts + uuid;
+                std::string client_sig  = GetMD5Hash(rawData);
+                if (client_sig == server_sig) {
+                    long long ts_val = std::stoll(server_ts);
+                    long long now    = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                        std::chrono::system_clock::now().time_since_epoch()).count();
+                    if (std::abs(now - ts_val) < 300000LL) {
+                        if (server_bool) {
+                            if (data.contains(oxorany("days_remaining")) && data[oxorany("days_remaining")].is_number()) {
+                                vip_days_remaining = data[oxorany("days_remaining")].get<int>();
+                                vip_days_received  = true;
+                            }
+                            if (data.contains(oxorany("username")) && data[oxorany("username")].is_string()) {
+                                std::string uname = data[oxorany("username")].get<std::string>();
+                                strncpy(vip_username_str, uname.c_str(), sizeof(vip_username_str) - 1);
+                            }
+                            snprintf(auth_status, sizeof(auth_status), "%s",
+                                     server_msg.empty() ? oxorany("Login Successful!") : server_msg.c_str());
+                            auth_state.store(AUTH_SUCCESS);
+                            isSuccess = true;
+                        } else {
+                            snprintf(auth_status, sizeof(auth_status), "%s",
+                                     server_msg.empty() ? oxorany("Login Failed") : server_msg.c_str());
+                        }
+                    } else {
+                        snprintf(auth_status, sizeof(auth_status), oxorany("Security: Response Expired"));
+                    }
+                } else {
+                    snprintf(auth_status, sizeof(auth_status), oxorany("Security: Hash Mismatch Detected"));
+                }
+            } else {
+                snprintf(auth_status, sizeof(auth_status), oxorany("Server Error: Invalid Protocol"));
+            }
+        } catch (...) {
+            snprintf(auth_status, sizeof(auth_status), oxorany("Bad Server Response! Contact Developer"));
+        }
+    } else {
+        size_t len = strlen(errbuf);
+        if(len > 0) {
+            snprintf(auth_status, sizeof(auth_status), oxorany("CURL %d: %s"), res, errbuf);
+        } else {
+            snprintf(auth_status, sizeof(auth_status), oxorany("CURL Error Code: %d"), res);
+        }
+    }
+    free(chunk.memory);
+    curl_easy_cleanup(curl);
+    return isSuccess;
+}
 
 #include <fcntl.h>
 #include <dirent.h>
@@ -989,7 +1151,7 @@ LicenseSystem* g_licenseSystem = nullptr;
 */
 
 
-	
+        
 
 #define ARGB(a, r, g, b) r << 0 | g << 8 | b << 16 | a << 24
 #define ReadPointer(type, address) (*(type*)(address))
@@ -1021,9 +1183,9 @@ static jobject g_context = nullptr;
     static bool showBlocked = true;
     static bool showAllowed = true;
     static bool autoScroll = true;  // TAMBAHKAN INI
-	
-	/*
-	// UI State
+        
+        /*
+        // UI State
 static char keyInput[256] = "";
 static std::string statusMessage = "";
 static bool showMainMenu = false;
@@ -1204,10 +1366,10 @@ void BeginGroupPanel(const std::string& title, int flags = 0, const ImVec2& size
         
         ImGui::EndGroup();
     }
-		
-	
-	
-	
+                
+        
+        
+        
 void checkProtectionStatus();
 bool verifyProtectionActive();
 
@@ -1272,22 +1434,22 @@ void checkProtectionStatus() {
 ////////////T//////////
 void drawAntiTelemetryMenu() {
     if (!globalAntiTelemetry) return;
-	}
+        }
 
 
-	/////////////
-	
+        /////////////
+        
    void drawDomainScannerMenu() {
     if (!globalScanner) {
         LOGI("globalScanner is NULL!");
         return;
     }
     }
-	
-	
-	
-	
-	// ========== AUTO INJECT (HANYA AMBIL PID & BASE) ==========
+        
+        
+        
+        
+        // ========== AUTO INJECT (HANYA AMBIL PID & BASE) ==========
 void AutoInject() {
     if (inject_done) return;
     
@@ -1346,10 +1508,10 @@ void SmartAutoInject() {
         AutoInject();
     }
 }
-	
-	
-	
-	
+        
+        
+        
+        
 // ========== GANTI DENGAN KODE INI ==========
 
 // Variabel global
@@ -1505,7 +1667,7 @@ void noMore(ImDrawList* draw) {
     if (!sync_bool["bESP"]) return;
 
     auto all_entities = get_entities();
-	
+        
     std::vector<Entity> valid_entities = all_entities;
     
     std::sort(valid_entities.begin(), valid_entities.end(),
@@ -1522,12 +1684,12 @@ void noMore(ImDrawList* draw) {
     }
 
     int players = 0, bots = 0;
-	
+        
     for (const Entity& e : valid_entities) {
         if (e.is_bot) bots++;
         else players++;
-		
-			
+                
+                        
         if (!e.is_on_screen) continue;
         
         ImVec2 From;
@@ -1586,7 +1748,7 @@ void noMore(ImDrawList* draw) {
             draw->AddLine(limbs_r_foot, limbs_r_toe, linecolor, thickness);
             draw->AddLine(limbs_l_foot, limbs_l_toe, linecolor, thickness);
         }
-	
+        
         
           ImVec2 head = ToImVec2(e.bones.at("head"));
           ImVec2 To = ImVec2(head.x, head.y - 50.0f);
@@ -1976,7 +2138,7 @@ if (!sync_bool["bAIM_NoTargetHideFov"] || (players || bots)) {
     }
     }
     
-	
+        
     // Magic Bullet FOV
     if (sync_bool["bMagic"] && magicBulletDrawFov) {
         draw->AddCircle(ImVec2(Width / 2, Height / 2), magicBulletRadius,
@@ -1992,9 +2154,9 @@ if (!sync_bool["bAIM_NoTargetHideFov"] || (players || bots)) {
                      IM_COL32(255, 100, 0, 255), 2.0f);
     }
 
-	}
-	/*
-	void DrawWaveModsMenu() {
+        }
+        /*
+        void DrawWaveModsMenu() {
     static bool itsRohitOp = true;
     static bool showMenu = true;
     bool need_sync = false;
@@ -2056,13 +2218,13 @@ if (!sync_bool["bAIM_NoTargetHideFov"] || (players || bots)) {
             ImGui::End();
         }
     } else {
-	
-	*/
-	
-	
-	/*
-	//////////
-	void DrawWaveModsMenu() {
+        
+        */
+        
+        
+        /*
+        //////////
+        void DrawWaveModsMenu() {
     static bool itsRohitOp = true;
     static bool showMenu = true;
     bool need_sync = false;
@@ -2074,8 +2236,8 @@ if (!sync_bool["bAIM_NoTargetHideFov"] || (players || bots)) {
     static bool isLogin = false;
     static bool xxxxx = false;
     static std::string err;
-	
-	  if (!isLogin) {
+        
+          if (!isLogin) {
     if (ImGui::Begin(xorstr_("LOGIN PAGE"), NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize)) {
         ImGui::Text(xorstr_(ICON_FA_USER_SECRET " CONTACT SELLER TO BUY KEY"));
         
@@ -2102,10 +2264,442 @@ if (!sync_bool["bAIM_NoTargetHideFov"] || (players || bots)) {
         ImGui::End();
     }
 } else {
-	*/
-	
-	
-	void DrawWaveModsMenu() {
+        */
+
+
+// =====================================================================
+// SACREDBS VIP - DRAWMENU (Main Menu matching src/ design)
+// =====================================================================
+void DrawMenu(ImGuiIO& io) {
+    bool need_sync = false;
+    static bool tab_changed = false;
+    static int tab = 1;
+    static std::map<std::string, bool> last_sync_bool = sync_bool;
+    ImVec4 themeColor  = ImVec4(0.95f, 0.20f, 0.20f, 1.0f);
+    ImVec4 accentColor = ImVec4(1.0f,  0.80f, 0.10f, 1.0f);
+
+    auto DrawShieldLogo = [](ImDrawList* ld, ImVec2 center, float sz, float t) {
+        float hw = sz * 0.50f, hh = sz * 0.55f;
+        ld->AddRectFilled(
+            ImVec2(center.x - hw + 2, center.y - hh + 2),
+            ImVec2(center.x + hw + 2, center.y + hh + 2),
+            IM_COL32(0, 0, 0, 80), sz * 0.15f);
+        float pulse = (sinf(t * 2.0f) + 1.0f) * 0.5f;
+        int rc = (int)(120 + 80 * pulse), gc_val = (int)(10 * (1.0f - pulse));
+        ld->AddRectFilled(
+            ImVec2(center.x - hw, center.y - hh),
+            ImVec2(center.x + hw, center.y + hh),
+            IM_COL32(rc, gc_val, 8, 230), sz * 0.13f);
+        ld->AddRect(
+            ImVec2(center.x - hw, center.y - hh),
+            ImVec2(center.x + hw, center.y + hh),
+            IM_COL32(220, 160, 0, 200), sz * 0.13f, 0, 2.0f);
+        ld->AddRectFilled(
+            ImVec2(center.x - hw * 0.7f, center.y - hh * 0.88f),
+            ImVec2(center.x + hw * 0.7f, center.y - hh * 0.60f),
+            IM_COL32(255, 255, 255, 18), 2.0f);
+        float bw = sz * 0.32f, bh = sz * 0.07f, bc = sz * 0.08f;
+        float sx = center.x - bw * 0.5f, sy = center.y - (bh*3 + bc*2) * 0.5f - sz * 0.04f;
+        ImU32 gc2 = IM_COL32(255, 215, 0, 255);
+        ld->AddRectFilled(ImVec2(sx,         sy),              ImVec2(sx+bw,    sy+bh),          gc2, 2.0f);
+        ld->AddRectFilled(ImVec2(sx,         sy+bh),           ImVec2(sx+bh,    sy+bh+bc),       gc2);
+        ld->AddRectFilled(ImVec2(sx,         sy+bh+bc),        ImVec2(sx+bw,    sy+bh*2+bc),     gc2, 2.0f);
+        ld->AddRectFilled(ImVec2(sx+bw-bh,   sy+bh*2+bc),     ImVec2(sx+bw,    sy+bh*2+bc+bc),  gc2);
+        ld->AddRectFilled(ImVec2(sx,         sy+bh*2+bc*2),   ImVec2(sx+bw,    sy+bh*3+bc*2),   gc2, 2.0f);
+        ld->AddCircleFilled(ImVec2(center.x - hw + 5, center.y - hh + 5), 3.0f, IM_COL32(255,200,0,160));
+        ld->AddCircleFilled(ImVec2(center.x + hw - 5, center.y - hh + 5), 3.0f, IM_COL32(255,200,0,160));
+    };
+
+    if (!showMenu) {
+        ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.90f, io.DisplaySize.y * 0.15f), ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
+        ImGui::SetNextWindowSize(ImVec2(80, 88));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 12.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+        ImGui::PushStyleColor(ImGuiCol_Border,   ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+        if (ImGui::Begin(xorstr_("##OpenMenuBtn"), nullptr,
+            ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings |
+            ImGuiWindowFlags_NoBackground)) {
+            float t = ImGui::GetTime();
+            ImDrawList* bdl = ImGui::GetWindowDrawList();
+            ImVec2 bp = ImGui::GetWindowPos();
+            float cx = bp.x + 40, cy = bp.y + 44;
+            int ga = (int)(140 + 80 * fabsf(sinf(t * 2.0f)));
+            bdl->AddCircle(ImVec2(cx, cy), 42.0f, IM_COL32(200, 20, 20, ga), 32, 3.0f);
+            bdl->AddCircleFilled(ImVec2(cx, cy), 38.0f, IM_COL32(12, 4, 4, 245));
+            DrawShieldLogo(bdl, ImVec2(cx, cy - 2), 52.0f, t);
+            ImGui::SetCursorPos(ImVec2(0, 0));
+            ImGui::InvisibleButton(xorstr_("##btn"), ImVec2(80, 88));
+            if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+                ImVec2 delta = ImGui::GetIO().MouseDelta;
+                ImGui::SetWindowPos(ImVec2(ImGui::GetWindowPos().x + delta.x, ImGui::GetWindowPos().y + delta.y));
+            }
+            if (ImGui::IsItemDeactivated() && !ImGui::IsMouseDragging(ImGuiMouseButton_Left, 4.0f)) {
+                showMenu = true;
+            }
+        }
+        ImGui::End();
+        ImGui::PopStyleVar(2);
+        ImGui::PopStyleColor(2);
+        return;
+    }
+
+    if (auth_state.load() != AUTH_SUCCESS) {
+        if (cached_uuid.empty()) cached_uuid = GetCleanUUID();
+        std::string link = GetKeyGeneratorLink(cached_uuid);
+        ImGui::SetNextWindowSizeConstraints(ImVec2(400, 420), ImVec2(io.DisplaySize.x * 0.95f, io.DisplaySize.y * 0.9f));
+        ImGui::SetNextWindowSize(ImVec2(520, 460), ImGuiCond_FirstUseEver);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,    ImVec2(20.0f, 20.0f));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding,   8.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 2.0f);
+        ImGui::PushStyleColor(ImGuiCol_WindowBg,      ImVec4(0.06f, 0.04f, 0.04f, 0.98f));
+        ImGui::PushStyleColor(ImGuiCol_Border,        ImVec4(0.70f, 0.06f, 0.06f, 0.90f));
+        ImGui::PushStyleColor(ImGuiCol_FrameBg,       ImVec4(0.12f, 0.07f, 0.07f, 0.90f));
+        ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.18f, 0.08f, 0.08f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.45f, 0.05f, 0.05f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_CheckMark,     ImVec4(0.95f, 0.20f, 0.20f, 1.0f));
+        if (ImGui::Begin(xorstr_("##KeySystem"), nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar)) {
+            float windowWidth = ImGui::GetWindowSize().x;
+            ImGui::SetWindowFontScale(1.1f);
+            const char* title = xorstr_("SACREDBS VIP - LOGIN");
+            ImGui::SetCursorPosX((windowWidth - ImGui::CalcTextSize(title).x) * 0.5f);
+            ImGui::TextColored(themeColor, "%s", title);
+            ImGui::SetWindowFontScale(1.0f);
+            ImGui::Separator(); ImGui::Spacing();
+            ImGui::TextDisabled(xorstr_("DEVICE:")); ImGui::SameLine();
+            ImGui::Text("%s", getDeviceName().c_str());
+            ImGui::TextDisabled(xorstr_("HWID:")); ImGui::SameLine();
+            ImGui::Text("%s", cached_uuid.c_str());
+            ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
+            ImGui::TextColored(themeColor, xorstr_("STEP 1: GET YOUR FREE 1DAY KEY"));
+            float halfW = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x) * 0.5f;
+            if (ImGui::Button(xorstr_("OPEN IN BROWSER"), ImVec2(halfW, 45))) {
+                OpenBrowserWithUrl(link);
+                snprintf(auth_status, sizeof(auth_status), xorstr_("Opening browser..."));
+            }
+            ImGui::SameLine();
+            if (ImGui::Button(xorstr_("COPY LINK"), ImVec2(halfW, 45))) {
+                CopyLinkToClipboard(link);
+                snprintf(auth_status, sizeof(auth_status), xorstr_("Link Copied! Paste in browser."));
+            }
+            ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
+            ImGui::TextColored(themeColor, xorstr_("STEP 2: LOGIN"));
+            ImGui::PushItemWidth(-1);
+            if (ImGui::InputTextWithHint(xorstr_("##keyinput"), xorstr_("click PASTE..."), user_input_key, IM_ARRAYSIZE(user_input_key))) {
+                ShowSoftKeyboardInput();
+            }
+            ImGui::PopItemWidth();
+            ImGui::Spacing();
+            if (ImGui::Button(xorstr_("PASTE KEY FROM CLIPBOARD"), ImVec2(-1, 40))) {
+                std::string clip = getClipboard();
+                if (!clip.empty()) {
+                    strncpy(user_input_key, clip.c_str(), IM_ARRAYSIZE(user_input_key) - 1);
+                    snprintf(auth_status, sizeof(auth_status), xorstr_("Key pasted!"));
+                } else {
+                    snprintf(auth_status, sizeof(auth_status), xorstr_("Clipboard is empty!"));
+                }
+            }
+            ImGui::Spacing();
+            ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.70f, 0.06f, 0.06f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.90f, 0.10f, 0.10f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_Text,          ImVec4(1.0f,  1.0f,  1.0f,  1.0f));
+            if (is_authenticating) {
+                ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
+                ImGui::Button(xorstr_("VERIFYING..."), ImVec2(-1, 48));
+                ImGui::PopStyleVar();
+            } else {
+                if (ImGui::Button(xorstr_("LOGIN"), ImVec2(-1, 48))) {
+                    is_authenticating = true;
+                    snprintf(auth_status, sizeof(auth_status), xorstr_("Connecting to server..."));
+                    std::string temp_key(user_input_key);
+                    std::string temp_hwid(cached_uuid);
+                    std::thread([temp_key, temp_hwid]() {
+                        JNIEnv *env;
+                        int getEnvStat = jvm->GetEnv((void **)&env, JNI_VERSION_1_6);
+                        bool did_attach = false;
+                        if (getEnvStat == JNI_EDETACHED) {
+                            if (jvm->AttachCurrentThread(&env, NULL) == JNI_OK) did_attach = true;
+                        }
+                        VerifyKeyWithServer(temp_key, temp_hwid);
+                        is_authenticating = false;
+                        if (did_attach) jvm->DetachCurrentThread();
+                    }).detach();
+                }
+            }
+            ImGui::PopStyleColor(3);
+            ImGui::Spacing();
+            float statusWidth = ImGui::CalcTextSize(auth_status).x;
+            ImGui::SetCursorPosX((windowWidth - statusWidth) * 0.5f);
+            bool isFail = strstr(auth_status, "Failed") || strstr(auth_status, "Error") ||
+                          strstr(auth_status, "expired") || strstr(auth_status, "device");
+            ImGui::TextColored(isFail ? ImVec4(1.0f,0.2f,0.2f,1.0f) : ImVec4(0.3f,1.0f,0.3f,1.0f), "%s", auth_status);
+        }
+        ImGui::End();
+        ImGui::PopStyleColor(6);
+        ImGui::PopStyleVar(3);
+        return;
+    }
+
+    float maxWidth  = io.DisplaySize.x * 0.95f;
+    float maxHeight = io.DisplaySize.y * 0.95f;
+    ImGui::SetNextWindowSizeConstraints(ImVec2(500, 300), ImVec2(maxWidth, maxHeight));
+    ImGui::SetNextWindowSize(ImVec2(700, 440), ImGuiCond_FirstUseEver);
+    ImGuiStyle& style = GetStyle();
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,    ImVec2(12.0f, 12.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding,   8.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 2.0f);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg,             ImVec4(0.06f, 0.04f, 0.04f, 0.98f));
+    ImGui::PushStyleColor(ImGuiCol_Border,               ImVec4(0.70f, 0.06f, 0.06f, 0.90f));
+    ImGui::PushStyleColor(ImGuiCol_ScrollbarBg,          ImVec4(0.04f, 0.02f, 0.02f, 0.80f));
+    ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab,        ImVec4(0.55f, 0.05f, 0.05f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, ImVec4(0.75f, 0.10f, 0.10f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive,  ImVec4(0.90f, 0.15f, 0.15f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Separator,            ImVec4(0.50f, 0.04f, 0.04f, 0.80f));
+    ImGui::PushStyleColor(ImGuiCol_FrameBg,              ImVec4(0.10f, 0.06f, 0.06f, 0.90f));
+    ImGui::PushStyleColor(ImGuiCol_Button,               ImVec4(0.14f, 0.08f, 0.08f, 0.90f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered,        ImVec4(0.40f, 0.05f, 0.05f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Header,               ImVec4(0.50f, 0.04f, 0.04f, 0.60f));
+    ImGui::PushStyleColor(ImGuiCol_CheckMark,            ImVec4(0.95f, 0.20f, 0.20f, 1.0f));
+
+    if (ImGui::Begin(xorstr_("##SACREDBS_MENU"), &showMenu, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse)) {
+        float ww    = ImGui::GetWindowSize().x;
+        float t_now = ImGui::GetTime();
+        ImVec2 winPos = ImGui::GetWindowPos();
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+
+        float HDR_H  = 56.0f;
+        float logoSz = 44.0f;
+        ImVec2 hdrMin = ImVec2(winPos.x + 1, winPos.y + 1);
+        ImVec2 hdrMax = ImVec2(winPos.x + ww - 1, winPos.y + HDR_H);
+        dl->AddRectFilled(hdrMin, hdrMax, IM_COL32(12, 4, 4, 255), 8.0f, ImDrawFlags_RoundCornersTop);
+        dl->AddLine(ImVec2(hdrMin.x, hdrMax.y), ImVec2(hdrMax.x, hdrMax.y), IM_COL32(180, 120, 0, 180), 1.5f);
+        dl->AddRect(hdrMin, hdrMax, IM_COL32(150, 12, 12, 160), 8.0f, ImDrawFlags_RoundCornersTop, 1.2f);
+        DrawShieldLogo(dl, ImVec2(winPos.x + 8 + logoSz * 0.5f, winPos.y + HDR_H * 0.5f), logoSz, t_now);
+
+        ImGui::SetWindowFontScale(0.90f);
+        {
+            float dragX = 8 + logoSz + 6;
+            float closeW = 68.0f;
+            float dragW = ww - dragX - closeW - ImGui::GetStyle().ItemSpacing.x;
+            ImGui::SetCursorPos(ImVec2(dragX, 0));
+            ImGui::InvisibleButton(xorstr_("##hdr_drag"), ImVec2(dragW, HDR_H));
+            if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+                ImVec2 delta = ImGui::GetIO().MouseDelta;
+                ImGui::SetWindowPos(ImVec2(winPos.x + delta.x, winPos.y + delta.y));
+            }
+            ImGui::SetWindowFontScale(0.90f);
+            float fh = ImGui::GetFontSize();
+            int pr = (int)(220 + 35 * sinf(t_now * 2.5f));
+            int pg = (int)(150 * fabsf(sinf(t_now * 1.3f)));
+            dl->AddText(ImVec2(winPos.x + dragX, winPos.y + (HDR_H - fh) * 0.5f),
+                        IM_COL32(pr, pg, 10, 255), xorstr_("SACREDBS VIP  :::  drag to move"));
+        }
+
+        ImGui::SetWindowFontScale(0.70f);
+        ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.60f, 0.04f, 0.04f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.90f, 0.10f, 0.10f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.35f, 0.02f, 0.02f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text,          ImVec4(1.0f,  1.0f,  1.0f,  1.0f));
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 20.0f);
+        float btnH = HDR_H - 16.0f;
+        ImGui::SetCursorPos(ImVec2(ww - 68, (HDR_H - btnH) * 0.5f));
+        if (ImGui::Button(xorstr_(" X "), ImVec2(56, btnH))) showMenu = false;
+        ImGui::PopStyleVar();
+        ImGui::PopStyleColor(4);
+
+        ImGui::SetWindowFontScale(1.0f);
+        ImGui::SetCursorPosY(HDR_H + 4);
+        ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
+
+        ImGui::SetWindowFontScale(0.80f);
+        float totalWidth = ImGui::GetContentRegionAvail().x;
+        float btnWidth = (totalWidth - (style.ItemSpacing.x * 3)) / 4.0f;
+
+        auto NavBtn = [&](const char* label, int id) {
+            bool is_active = (tab == id);
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 5.0f);
+            if (is_active) {
+                ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.75f, 0.05f, 0.05f, 0.90f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.90f, 0.10f, 0.10f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_Text,          ImVec4(1.0f,  0.85f, 0.10f, 1.0f));
+            }
+            if (ImGui::Button(label, ImVec2(btnWidth, 38))) { tab = id; tab_changed = true; }
+            if (is_active) ImGui::PopStyleColor(3);
+            ImGui::PopStyleVar();
+        };
+
+        NavBtn(xorstr_("VISUAL"), 1); ImGui::SameLine();
+        NavBtn(xorstr_("COMBAT"), 2); ImGui::SameLine();
+        NavBtn(xorstr_("MEMORY"), 3); ImGui::SameLine();
+        NavBtn(xorstr_("INFO"),   4);
+
+        ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
+        ImGui::BeginChild(xorstr_("##MainContent"), ImVec2(0, 0), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
+
+        if (tab == 1) {
+            ImGui::Spacing();
+            if (ImGui::BeginTable(xorstr_("##V_T"), 2, ImGuiTableFlags_SizingStretchProp)) {
+                ImGui::TableNextColumn();
+                ImGui::TextColored(themeColor, xorstr_("ESP SETTINGS"));
+                ImGui::Separator(); ImGui::Spacing();
+                need_sync |= Checkbox(xorstr_("ENABLE ESP"),    &sync_bool["bESP"]);
+                need_sync |= Combo(xorstr_("Starting Point"),   &sync_int["iESP_Point"], espPoint, IM_ARRAYSIZE(espPoint));
+                need_sync |= Checkbox(xorstr_("LINE"),          &sync_bool["bESP_Line"]);
+                need_sync |= Checkbox(xorstr_("LINE [ BOT ]"),  &sync_bool["bESP_LineBots"]);
+                need_sync |= Checkbox(xorstr_("SKELETON"),      &sync_bool["bESP_Skeleton"]);
+                need_sync |= Checkbox(xorstr_("BOX"),           &sync_bool["bESP_Box"]);
+                need_sync |= Checkbox(xorstr_("HEALTH"),        &sync_bool["bESP_Health"]);
+                need_sync |= Checkbox(xorstr_("NAME"),          &sync_bool["bESP_Name"]);
+                need_sync |= Checkbox(xorstr_("TEAM ID"),       &sync_bool["bESP_TeamID"]);
+
+                ImGui::TableNextColumn();
+                ImGui::TextColored(themeColor, xorstr_("COLOR CONFIG"));
+                ImGui::Separator(); ImGui::Spacing();
+
+                auto ColorRow = [&](const char* name, std::string key1, std::string key2) {
+                    ImGui::Text("%s", name); ImGui::SameLine(85);
+                    ImGui::PushID(key1.c_str());
+                    ImGui::PushItemWidth(30);
+                    if (ImGui::ColorEdit4(xorstr_("##vis"), &colors[key1].Value.x, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel)) need_sync = true;
+                    ImGui::PopItemWidth(); ImGui::PopID();
+                    ImGui::SameLine();
+                    ImGui::PushID(key2.c_str());
+                    ImGui::PushItemWidth(30);
+                    if (ImGui::ColorEdit4(xorstr_("##hid"), &colors[key2].Value.x, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel)) need_sync = true;
+                    ImGui::PopItemWidth(); ImGui::PopID();
+                };
+
+                ColorRow(xorstr_("BOT"),   "cESP_LineBots",  "cESP_LineBotsHidden");
+                ColorRow(xorstr_("ENEMY"), "cESP_Line",      "cESP_LineHidden");
+                ColorRow(xorstr_("SKEL"),  "cESP_Skeleton",  "cESP_SkeletonHidden");
+                ImGui::EndTable();
+            }
+            ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
+            ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.7f);
+            need_sync |= SliderFloat(xorstr_("Esp Line Size"), &sync_float["fESP_LineThickness"], 1.0f, 10.0f);
+            ImGui::PopItemWidth();
+        }
+
+        if (tab == 2) {
+            if (ImGui::BeginTable(xorstr_("##C_T"), 2, ImGuiTableFlags_SizingStretchProp)) {
+                ImGui::TableNextColumn();
+                ImGui::TextColored(themeColor, xorstr_("AIMBOT SETTINGS"));
+                ImGui::Separator(); ImGui::Spacing();
+                need_sync |= Checkbox(xorstr_("Enable Aimbot"),   &sync_bool["bAIM"]);
+                need_sync |= Combo(xorstr_("Trigger"),            &sync_int["iAIM_Trigger"],    aimbotTrigger, IM_ARRAYSIZE(aimbotTrigger));
+                need_sync |= Combo(xorstr_("Target Bone"),        &sync_int["iAIM_TargetBone"], targetBone,    IM_ARRAYSIZE(targetBone));
+                need_sync |= Checkbox(xorstr_("Draw Snapline"),   &sync_bool["bAIM_SnapLine"]);
+                ImGui::PushItemWidth(120);
+                need_sync |= SliderFloat(xorstr_("Aim Snap Strength"), &sync_float["fAIM_SnapStrength"], 0.001f, 1.0f);
+                ImGui::PopItemWidth();
+                ImGui::Spacing(); ImGui::Spacing();
+                ImGui::TextColored(themeColor, xorstr_("TARGET FILTERS"));
+                ImGui::Separator(); ImGui::Spacing();
+                need_sync |= Checkbox(xorstr_("Visible Check"),   &sync_bool["bAIM_CheckVisibility"]);
+                need_sync |= Checkbox(xorstr_("Ignore Bots"),     &sync_bool["bAIM_IgnoreBots"]);
+                need_sync |= Checkbox(xorstr_("Ignore Knocked"),  &sync_bool["bAIM_IgnoreKnocked"]);
+
+                ImGui::TableNextColumn();
+                ImGui::TextColored(themeColor, xorstr_("FOV CONFIG"));
+                ImGui::Separator(); ImGui::Spacing();
+                need_sync |= Checkbox(xorstr_("Draw FOV Circle"), &sync_bool["bAIM_DrawFov"]);
+                need_sync |= Checkbox(xorstr_("Hide FOV if safe"),&sync_bool["bAIM_NoTargetHideFov"]);
+                ImGui::Spacing();
+                ImGui::PushItemWidth(120);
+                need_sync |= SliderFloat(xorstr_("Fov Size"), &sync_float["fAIM_Fov"], 30.0f, 1500.0f);
+                ImGui::PopItemWidth();
+                ImGui::EndTable();
+            }
+        }
+
+        if (tab == 3) {
+            if (ImGui::BeginTable(xorstr_("##M_T"), 2, ImGuiTableFlags_SizingStretchProp)) {
+                ImGui::TableNextColumn();
+                ImGui::TextColored(themeColor, xorstr_("WEAPON EXPLOITS"));
+                ImGui::Separator(); ImGui::Spacing();
+                need_sync |= Checkbox(xorstr_("NoRecoil"),    &sync_bool["bNoRecoil"]);
+                need_sync |= Checkbox(xorstr_("No Spread"),   &sync_bool["bNoSpread"]);
+                need_sync |= Checkbox(xorstr_("Fast Switch"),  &sync_bool["bSwitch"]);
+                need_sync |= Checkbox(xorstr_("Unlock Skin"), &sync_bool["bSkinHack"]);
+                need_sync |= Checkbox(xorstr_("Magic Bullet"),&sync_bool["bMagic"]);
+                need_sync |= Checkbox(xorstr_("Bullet Track"),&sync_bool["bBulletTrack"]);
+
+                ImGui::TableNextColumn();
+                ImGui::TextColored(themeColor, xorstr_("PLAYER EXPLOITS"));
+                ImGui::Separator(); ImGui::Spacing();
+                need_sync |= Checkbox(xorstr_("Wallhack Red"), &sync_bool["bXray"]);
+                need_sync |= Checkbox(xorstr_("Speed Boost"),  &sync_bool["bSpeed"]);
+                if (sync_bool["bSpeed"]) {
+                    ImGui::Spacing();
+                    ImGui::PushItemWidth(120);
+                    need_sync |= SliderFloat(xorstr_("Speed Multiplier"), &sync_float["fSpeed"], 1.0f, 1.5f);
+                    ImGui::PopItemWidth();
+                }
+                need_sync |= Checkbox(xorstr_("High Jump"),   &sync_bool["bjump"]);
+                if (sync_bool["bjump"]) {
+                    ImGui::Spacing();
+                    ImGui::PushItemWidth(120);
+                    need_sync |= SliderFloat(xorstr_("Jump Force"), &sync_float["fbjump"], 1.0f, 5.0f);
+                    ImGui::PopItemWidth();
+                }
+                ImGui::EndTable();
+            }
+            last_sync_bool = sync_bool;
+        }
+
+        if (tab == 4) {
+            if (ImGui::BeginTable(xorstr_("##I_T"), 2, ImGuiTableFlags_SizingStretchProp)) {
+                ImGui::TableNextColumn();
+                ImGui::TextColored(accentColor, xorstr_("VIP STATUS"));
+                ImGui::Separator(); ImGui::Spacing();
+                if (strlen(vip_username_str) > 0) {
+                    ImGui::TextDisabled(xorstr_("USER:")); ImGui::SameLine();
+                    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.1f, 1.0f), "%s", vip_username_str);
+                }
+                ImGui::TextDisabled(xorstr_("DAYS REMAINING:")); ImGui::SameLine();
+                if (vip_days_received) {
+                    float dr = (float)vip_days_remaining;
+                    ImVec4 daysColor = dr > 7 ? ImVec4(0.3f,1.0f,0.3f,1.0f)
+                                     : dr > 2 ? ImVec4(1.0f,0.7f,0.1f,1.0f)
+                                     :          ImVec4(1.0f,0.2f,0.2f,1.0f);
+                    ImGui::TextColored(daysColor, "%d DAYS", vip_days_remaining);
+                } else {
+                    ImGui::TextDisabled(xorstr_("---"));
+                }
+                ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
+                ImGui::TextColored(themeColor, xorstr_("ABOUT"));
+                ImGui::Separator(); ImGui::Spacing();
+                ImGui::Text(xorstr_("DEVELOPER : SACREDBS VIP"));
+                ImGui::Spacing();
+                ImGui::Text(xorstr_("OFFICIAL TELEGRAM : T.ME/SACREDBS_VIP"));
+                ImGui::Spacing(); ImGui::Spacing();
+                ImGui::TextDisabled(xorstr_("LAUNCHER VERSION : 1.003.650015"));
+                ImGui::Separator(); ImGui::Spacing();
+                ImGui::TextColored(themeColor, xorstr_("FIX HACK NOT WORKING"));
+                ImGui::Separator(); ImGui::Spacing();
+                ImGui::TextDisabled(xorstr_("make sure your bloodstrike version is the same in the version of this launcher"));
+                ImGui::TextDisabled(xorstr_("if the bloodstrike version and this launcher is same follow the next step"));
+                ImGui::Spacing(); ImGui::Spacing();
+                ImGui::TextDisabled(xorstr_("step 1: go to firing range and check the ENABLE ESP, ESP LINE [ BOT ]"));
+                ImGui::TextDisabled(xorstr_("step 2: turn off wifi/data then wait for the bloodstrike login screen appears"));
+                ImGui::TextDisabled(xorstr_("step 3: if the login screen appears then turn on your wifi/data then wait"));
+                ImGui::TextDisabled(xorstr_("for the bloodstrike to load, you can click whatever in the login screen then"));
+                ImGui::TextDisabled(xorstr_("when it loads then congrats, the cheat is now working. you can quit the firing range!"));
+                ImGui::EndTable();
+            }
+        }
+
+        if (tab_changed || need_sync) sync_with_py();
+        ImGui::EndChild();
+        ImGui::SetWindowFontScale(1.0f);
+    }
+    ImGui::End();
+    ImGui::PopStyleColor(12);
+    ImGui::PopStyleVar(3);
+}
+
+        void DrawWaveModsMenu() {
     static bool itsRohitOp = true;
     static bool showMenu = true;
     bool need_sync = false;
@@ -2117,8 +2711,8 @@ if (!sync_bool["bAIM_NoTargetHideFov"] || (players || bots)) {
     static bool isLogin = true;
     static bool xxxxx = true;
     static std::string err;
-	
-	  if (!isLogin) {
+        
+          if (!isLogin) {
     if (ImGui::Begin(xorstr_("LOGIN PAGE"), NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize)) {
         ImGui::Text(xorstr_(ICON_FA_USER_SECRET " CONTACT SELLER TO BUY KEY"));
         
@@ -2145,9 +2739,9 @@ if (!sync_bool["bAIM_NoTargetHideFov"] || (players || bots)) {
         ImGui::End();
     }
 } else {
-	
-	
-	
+        
+        
+        
     
     // ✅ FLOATING BUTTON
     {
@@ -2832,7 +3426,7 @@ if (!sync_bool["bAIM_NoTargetHideFov"] || (players || bots)) {
     if (need_sync) sync_with_py();
 }
 }
-	/*
+        /*
 static bool setup = false;
 
 DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
@@ -2844,16 +3438,16 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
 
     if (!setup) {
 
-	
-		static ImFont* F50 = nullptr;       // ✅ UBAH KE STATIC
+        
+                static ImFont* F50 = nullptr;       // ✅ UBAH KE STATIC
         static ImFont* Subtab = nullptr;
         static ImFont* TELEGRAM = nullptr;
         static ImFont* logoicon = nullptr;
         static ImFont* F48 = nullptr;
-		
+                
         setup = true;
     //initializePatterns();
-	//useManualOffset();
+        //useManualOffset();
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
         ImGuiIO &io = ImGui::GetIO();
@@ -2868,17 +3462,17 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
         icons_config.OversampleH = 2.5f;
         icons_config.OversampleV = 2.5f;
         io.Fonts->AddFontFromMemoryTTF((void*)roominfofont, sizeof(roominfofont), 28.5f, &font_cfg, io.Fonts->GetGlyphRangesChineseFull());
-		
-		F50 = io.Fonts->AddFontFromMemoryTTF((void*)roominfofont, sizeof(roominfofont), 50.0f, &font_cfg, io.Fonts->GetGlyphRangesChineseFull());
+                
+                F50 = io.Fonts->AddFontFromMemoryTTF((void*)roominfofont, sizeof(roominfofont), 50.0f, &font_cfg, io.Fonts->GetGlyphRangesChineseFull());
         Subtab = io.Fonts->AddFontFromMemoryTTF((void*)roominfofont, sizeof(roominfofont), 35.0f, &font_cfg, io.Fonts->GetGlyphRangesChineseFull());
         F48 = io.Fonts->AddFontFromMemoryTTF((void*)roominfofont, sizeof(roominfofont), 48.0f, &font_cfg, io.Fonts->GetGlyphRangesChineseFull());
-		
+                
         io.Fonts->AddFontFromMemoryCompressedTTF(font_awesome_data, font_awesome_size, 45.f, &icons_config, icons_ranges);
-		
-		TELEGRAM = io.Fonts->AddFontFromMemoryCompressedTTF(font_awesome_data, font_awesome_size, 45.0f, &icons_config, icons_ranges);
+                
+                TELEGRAM = io.Fonts->AddFontFromMemoryCompressedTTF(font_awesome_data, font_awesome_size, 45.0f, &icons_config, icons_ranges);
         logoicon = io.Fonts->AddFontFromMemoryCompressedTTF(font_awesome_data, font_awesome_size, 50.0f, &icons_config, icons_ranges);
-		
-		
+                
+                
         ImGui_ImplOpenGL3_Init("#version 300 es");
         ImGui::StyleColorsClassic();
         */
@@ -3015,18 +3609,17 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
     ImGui_ImplAndroid_NewFrame(Width, Height);
     NewFrame();
     ClearImGuiWindowTracking();
-	// Add domain scanner menu
+        // Add domain scanner menu
     drawDomainScannerMenu();
-	//parseWeaponScanResults();
-	//saveScanSummary();
-	drawAntiTelemetryMenu();  // TAMBAHKAN INI
-	//HandleTouchInput(io); // TAMBAHKAN INI
+        //parseWeaponScanResults();
+        //saveScanSummary();
+        drawAntiTelemetryMenu();  // TAMBAHKAN INI
+        //HandleTouchInput(io); // TAMBAHKAN INI
     auto draw = GetBackgroundDrawList();
     noMore(draw);
-	
+        
     AutoInject();  // <--- INJECT OTOMATIS SETIAP FRAME
-    DrawWaveModsMenu();
-    //DrawMenu(io);
+    DrawMenu(io);
     EndFrame();
     Render();
     glViewport(0, 0, io.DisplaySize.x, io.DisplaySize.y);
