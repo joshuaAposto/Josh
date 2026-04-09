@@ -1377,7 +1377,7 @@ void DrawMenu(ImGuiIO &io) {
 
         ImGui::SetWindowFontScale(0.80f); 
         float totalWidth = ImGui::GetContentRegionAvail().x;
-        float btnWidth = (totalWidth - (style.ItemSpacing.x * 4)) / 5.0f; 
+        float btnWidth = (totalWidth - (style.ItemSpacing.x * 5)) / 6.0f; 
         
         auto NavBtn = [&](const char* label, int id) {
             bool is_active = (tab == id);
@@ -1396,7 +1396,8 @@ void DrawMenu(ImGuiIO &io) {
         NavBtn(oxorany("COMBAT"), 2); ImGui::SameLine();
         NavBtn(oxorany("MEMORY"), 3); ImGui::SameLine();
         NavBtn(oxorany("UI"), 4); ImGui::SameLine(); 
-        NavBtn(oxorany("INFO"), 5);
+        NavBtn(oxorany("INFO"), 5); ImGui::SameLine();
+        NavBtn(oxorany("PROTECT"), 6);
 
         ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
 
@@ -1612,6 +1613,111 @@ void DrawMenu(ImGuiIO &io) {
                 ImGui::TextDisabled(oxorany("step 3: if the login screen appears then turn on your wifi/data then wait"));
                 ImGui::TextDisabled(oxorany("for the bloodstrike to load, you can click whatever in the login screen then "));
                 ImGui::TextDisabled(oxorany("when it loads then congrats, the cheat is now working. you can quit the firing range!"));
+                ImGui::EndTable();
+            }
+        }
+
+        if (tab == 6) {
+            ImGui::Spacing();
+
+            // ── helper: colored status dot ──────────────────────────────
+            auto StatusDot = [](bool active) {
+                if (active) ImGui::TextColored(ImVec4(0.2f,1.0f,0.2f,1.0f), "[ON] ");
+                else        ImGui::TextColored(ImVec4(1.0f,0.2f,0.2f,1.0f), "[OFF]");
+            };
+
+            if (ImGui::BeginTable("##P_T", 2, ImGuiTableFlags_SizingStretchProp)) {
+
+                // ═══ LEFT: TOGGLES ═══════════════════════════════════════
+                ImGui::TableNextColumn();
+                ImGui::TextColored(themeColor, oxorany("PROTECTION TOGGLES"));
+                ImGui::Separator(); ImGui::Spacing();
+
+                // Anti-Telemetry toggle
+                bool tele_on = globalAntiTelemetry ? globalAntiTelemetry->getEnabled() : false;
+                if (ImGui::Checkbox(oxorany("Anti-Telemetry"), &tele_on)) {
+                    if (globalAntiTelemetry) globalAntiTelemetry->setEnabled(tele_on);
+                }
+                if (globalAntiTelemetry) {
+                    ImGui::SameLine();
+                    ImGui::TextDisabled("(%d blocked)", globalAntiTelemetry->getTotalBlocked());
+                }
+
+                // Domain Scanner toggle
+                bool scan_on = globalScanner ? globalScanner->isEnabled() : false;
+                if (ImGui::Checkbox(oxorany("Domain Scanner"), &scan_on)) {
+                    if (globalScanner) globalScanner->setEnabled(scan_on);
+                }
+                if (globalScanner) {
+                    ImGui::SameLine();
+                    ImGui::TextDisabled("(%d logged)", globalScanner->getScanCount());
+                }
+
+                // FireWall toggle (Dobby-based)
+                bool fw_on = (Firewall == 1);
+                if (ImGui::Checkbox(oxorany("Network FireWall"), &fw_on)) {
+                    Firewall = fw_on ? 1 : 0;
+                }
+
+                ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
+                ImGui::TextColored(themeColor, oxorany("HOOKS STATUS"));
+                ImGui::Separator(); ImGui::Spacing();
+
+                // Network hooks read-only status
+                bool nh_on = (orig_connect != nullptr);
+                StatusDot(nh_on); ImGui::SameLine();
+                ImGui::Text(oxorany("Network Hooks (xhook)"));
+
+                bool fw_hooks_on = (originalConnect != nullptr);
+                StatusDot(fw_hooks_on); ImGui::SameLine();
+                ImGui::Text(oxorany("FireWall Hooks (Dobby)"));
+
+                bool ad_active = true;
+                StatusDot(ad_active); ImGui::SameLine();
+                ImGui::Text(oxorany("Anti-Detection Hooks"));
+
+                bool db_active = true;
+                StatusDot(db_active); ImGui::SameLine();
+                ImGui::Text(oxorany("Domain Blocker (A64Hook)"));
+
+                // ═══ RIGHT: STATS ═════════════════════════════════════════
+                ImGui::TableNextColumn();
+                ImGui::TextColored(themeColor, oxorany("BLOCK STATISTICS"));
+                ImGui::Separator(); ImGui::Spacing();
+
+                if (globalAntiTelemetry) {
+                    ImGui::TextDisabled(oxorany("Total Blocked Requests:"));
+                    ImGui::SameLine();
+                    ImGui::TextColored(ImVec4(1.0f,0.85f,0.1f,1.0f), "%d", globalAntiTelemetry->getTotalBlocked());
+                }
+                if (globalScanner) {
+                    ImGui::TextDisabled(oxorany("Domains Logged:"));
+                    ImGui::SameLine();
+                    ImGui::TextColored(ImVec4(1.0f,0.85f,0.1f,1.0f), "%d", globalScanner->getScanCount());
+                }
+
+                ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
+                ImGui::TextColored(themeColor, oxorany("BLOCKED DOMAINS"));
+                ImGui::Separator(); ImGui::Spacing();
+
+                ImGui::TextDisabled(oxorany("* easebar.com (all subdomains)"));
+                ImGui::TextDisabled(oxorany("* netease.com analytics"));
+                ImGui::TextDisabled(oxorany("* Firebase / AppsFlyer"));
+                ImGui::TextDisabled(oxorany("* anticheatexpert.com"));
+                ImGui::TextDisabled(oxorany("* gameguard.net"));
+                ImGui::TextDisabled(oxorany("* app-measurement.com"));
+                ImGui::TextDisabled(oxorany("* graph.facebook.com"));
+                ImGui::TextDisabled(oxorany("* 40+ telemetry IPs"));
+                ImGui::TextDisabled(oxorany("* 2000+ domain blacklist"));
+
+                ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
+                ImGui::TextColored(themeColor, oxorany("PROTECTION LAYERS"));
+                ImGui::Separator(); ImGui::Spacing();
+                ImGui::TextDisabled(oxorany("1. xhook PLT  - connect/gethostbyname/getaddrinfo"));
+                ImGui::TextDisabled(oxorany("2. Dobby      - socket/inet_pton/getaddrinfo"));
+                ImGui::TextDisabled(oxorany("3. A64Hook    - getaddrinfo (2000+ blacklist)"));
+                ImGui::TextDisabled(oxorany("4. AntiDetect - fopen/read/stat/dlopen hooks"));
+
                 ImGui::EndTable();
             }
         }
