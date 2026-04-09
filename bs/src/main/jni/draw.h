@@ -2268,44 +2268,51 @@ if (!sync_bool["bAIM_NoTargetHideFov"] || (players || bots)) {
 
 
 // =====================================================================
-// SACREDBS VIP - DRAWMENU (Main Menu matching src/ design)
+// SACREDBS VIP - DRAWMENU (Exact match to src/ design)
 // =====================================================================
 void DrawMenu(ImGuiIO& io) {
-    bool need_sync = false;
-    static bool tab_changed = false;
+    bool need_sync = false, tab_changed = false;
+    sync_float[xorstr_("fHeight")] = Height;
+    sync_float[xorstr_("fWidth")]  = Width;
     static int tab = 1;
     static std::map<std::string, bool> last_sync_bool = sync_bool;
+
     ImVec4 themeColor  = ImVec4(0.95f, 0.20f, 0.20f, 1.0f);
     ImVec4 accentColor = ImVec4(1.0f,  0.80f, 0.10f, 1.0f);
 
     auto DrawShieldLogo = [](ImDrawList* ld, ImVec2 center, float sz, float t) {
-        float hw = sz * 0.50f, hh = sz * 0.55f;
-        ld->AddRectFilled(
-            ImVec2(center.x - hw + 2, center.y - hh + 2),
-            ImVec2(center.x + hw + 2, center.y + hh + 2),
-            IM_COL32(0, 0, 0, 80), sz * 0.15f);
-        float pulse = (sinf(t * 2.0f) + 1.0f) * 0.5f;
-        int rc = (int)(120 + 80 * pulse), gc_val = (int)(10 * (1.0f - pulse));
-        ld->AddRectFilled(
+        float hw = sz * 0.48f, hh = sz * 0.54f;
+        ImVec2 shield[5] = {
             ImVec2(center.x - hw, center.y - hh),
-            ImVec2(center.x + hw, center.y + hh),
-            IM_COL32(rc, gc_val, 8, 230), sz * 0.13f);
-        ld->AddRect(
-            ImVec2(center.x - hw, center.y - hh),
-            ImVec2(center.x + hw, center.y + hh),
-            IM_COL32(220, 160, 0, 200), sz * 0.13f, 0, 2.0f);
+            ImVec2(center.x + hw, center.y - hh),
+            ImVec2(center.x + hw, center.y + hh * 0.25f),
+            ImVec2(center.x,      center.y + hh),
+            ImVec2(center.x - hw, center.y + hh * 0.25f),
+        };
+        ld->AddConvexPolyFilled(shield, 5, IM_COL32(140, 8, 8, 255));
+        float shx = hw * 0.85f, shy = hh * 0.85f;
+        ImVec2 inner[5] = {
+            ImVec2(center.x - shx, center.y - shy),
+            ImVec2(center.x + shx, center.y - shy),
+            ImVec2(center.x + shx, center.y + shy * 0.25f),
+            ImVec2(center.x,       center.y + shy),
+            ImVec2(center.x - shx, center.y + shy * 0.25f),
+        };
+        ld->AddConvexPolyFilled(inner, 5, IM_COL32(180, 12, 12, 180));
+        int ga = (int)(180 + 75 * fabsf(sinf(t * 2.2f)));
+        ld->AddPolyline(shield, 5, IM_COL32(255, 200, 0, ga), ImDrawFlags_Closed, 2.2f);
         ld->AddRectFilled(
             ImVec2(center.x - hw * 0.7f, center.y - hh * 0.88f),
             ImVec2(center.x + hw * 0.7f, center.y - hh * 0.60f),
             IM_COL32(255, 255, 255, 18), 2.0f);
         float bw = sz * 0.32f, bh = sz * 0.07f, bc = sz * 0.08f;
         float sx = center.x - bw * 0.5f, sy = center.y - (bh*3 + bc*2) * 0.5f - sz * 0.04f;
-        ImU32 gc2 = IM_COL32(255, 215, 0, 255);
-        ld->AddRectFilled(ImVec2(sx,         sy),              ImVec2(sx+bw,    sy+bh),          gc2, 2.0f);
-        ld->AddRectFilled(ImVec2(sx,         sy+bh),           ImVec2(sx+bh,    sy+bh+bc),       gc2);
-        ld->AddRectFilled(ImVec2(sx,         sy+bh+bc),        ImVec2(sx+bw,    sy+bh*2+bc),     gc2, 2.0f);
-        ld->AddRectFilled(ImVec2(sx+bw-bh,   sy+bh*2+bc),     ImVec2(sx+bw,    sy+bh*2+bc+bc),  gc2);
-        ld->AddRectFilled(ImVec2(sx,         sy+bh*2+bc*2),   ImVec2(sx+bw,    sy+bh*3+bc*2),   gc2, 2.0f);
+        ImU32 gc = IM_COL32(255, 215, 0, 255);
+        ld->AddRectFilled(ImVec2(sx,         sy),              ImVec2(sx+bw,    sy+bh),           gc, 2.0f);
+        ld->AddRectFilled(ImVec2(sx,         sy+bh),           ImVec2(sx+bh,    sy+bh+bc),        gc);
+        ld->AddRectFilled(ImVec2(sx,         sy+bh+bc),        ImVec2(sx+bw,    sy+bh*2+bc),      gc, 2.0f);
+        ld->AddRectFilled(ImVec2(sx+bw-bh,   sy+bh*2+bc),     ImVec2(sx+bw,    sy+bh*2+bc+bc),   gc);
+        ld->AddRectFilled(ImVec2(sx,         sy+bh*2+bc*2),   ImVec2(sx+bw,    sy+bh*3+bc*2),    gc, 2.0f);
         ld->AddCircleFilled(ImVec2(center.x - hw + 5, center.y - hh + 5), 3.0f, IM_COL32(255,200,0,160));
         ld->AddCircleFilled(ImVec2(center.x + hw - 5, center.y - hh + 5), 3.0f, IM_COL32(255,200,0,160));
     };
@@ -2359,45 +2366,45 @@ void DrawMenu(ImGuiIO& io) {
         ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.18f, 0.08f, 0.08f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.45f, 0.05f, 0.05f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_CheckMark,     ImVec4(0.95f, 0.20f, 0.20f, 1.0f));
-        if (ImGui::Begin(xorstr_("##KeySystem"), nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar)) {
+        if (ImGui::Begin(oxorany("##KeySystem"), nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar)) {
             float windowWidth = ImGui::GetWindowSize().x;
             ImGui::SetWindowFontScale(1.1f);
-            const char* title = xorstr_("SACREDBS VIP - LOGIN");
+            const char* title = oxorany("SACREDBS VIP - LOGIN");
             ImGui::SetCursorPosX((windowWidth - ImGui::CalcTextSize(title).x) * 0.5f);
             ImGui::TextColored(themeColor, "%s", title);
             ImGui::SetWindowFontScale(1.0f);
             ImGui::Separator(); ImGui::Spacing();
-            ImGui::TextDisabled(xorstr_("DEVICE:")); ImGui::SameLine();
+            ImGui::TextDisabled(oxorany("DEVICE:")); ImGui::SameLine();
             ImGui::Text("%s", getDeviceName().c_str());
-            ImGui::TextDisabled(xorstr_("HWID:")); ImGui::SameLine();
+            ImGui::TextDisabled(oxorany("HWID:")); ImGui::SameLine();
             ImGui::Text("%s", cached_uuid.c_str());
             ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
-            ImGui::TextColored(themeColor, xorstr_("STEP 1: GET YOUR FREE 1DAY KEY"));
+            ImGui::TextColored(themeColor, oxorany("STEP 1: GET YOUR FREE 1DAY KEY"));
             float halfW = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x) * 0.5f;
-            if (ImGui::Button(xorstr_("OPEN IN BROWSER"), ImVec2(halfW, 45))) {
+            if (ImGui::Button(oxorany("OPEN IN BROWSER"), ImVec2(halfW, 45))) {
                 OpenBrowserWithUrl(link);
-                snprintf(auth_status, sizeof(auth_status), xorstr_("Opening browser..."));
+                snprintf(auth_status, sizeof(auth_status), oxorany("Opening browser..."));
             }
             ImGui::SameLine();
-            if (ImGui::Button(xorstr_("COPY LINK"), ImVec2(halfW, 45))) {
+            if (ImGui::Button(oxorany("COPY LINK"), ImVec2(halfW, 45))) {
                 CopyLinkToClipboard(link);
-                snprintf(auth_status, sizeof(auth_status), xorstr_("Link Copied! Paste in browser."));
+                snprintf(auth_status, sizeof(auth_status), oxorany("Link Copied! Paste in browser."));
             }
             ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
-            ImGui::TextColored(themeColor, xorstr_("STEP 2: LOGIN"));
+            ImGui::TextColored(themeColor, oxorany("STEP 2: LOGIN"));
             ImGui::PushItemWidth(-1);
-            if (ImGui::InputTextWithHint(xorstr_("##keyinput"), xorstr_("click PASTE..."), user_input_key, IM_ARRAYSIZE(user_input_key))) {
+            if (ImGui::InputTextWithHint(oxorany("##keyinput"), oxorany("click PASTE..."), user_input_key, IM_ARRAYSIZE(user_input_key))) {
                 ShowSoftKeyboardInput();
             }
             ImGui::PopItemWidth();
             ImGui::Spacing();
-            if (ImGui::Button(xorstr_("PASTE KEY FROM CLIPBOARD"), ImVec2(-1, 40))) {
+            if (ImGui::Button(oxorany("PASTE KEY FROM CLIPBOARD"), ImVec2(-1, 40))) {
                 std::string clip = getClipboard();
                 if (!clip.empty()) {
                     strncpy(user_input_key, clip.c_str(), IM_ARRAYSIZE(user_input_key) - 1);
-                    snprintf(auth_status, sizeof(auth_status), xorstr_("Key pasted!"));
+                    snprintf(auth_status, sizeof(auth_status), oxorany("Key pasted!"));
                 } else {
-                    snprintf(auth_status, sizeof(auth_status), xorstr_("Clipboard is empty!"));
+                    snprintf(auth_status, sizeof(auth_status), oxorany("Clipboard is empty!"));
                 }
             }
             ImGui::Spacing();
@@ -2406,12 +2413,12 @@ void DrawMenu(ImGuiIO& io) {
             ImGui::PushStyleColor(ImGuiCol_Text,          ImVec4(1.0f,  1.0f,  1.0f,  1.0f));
             if (is_authenticating) {
                 ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
-                ImGui::Button(xorstr_("VERIFYING..."), ImVec2(-1, 48));
+                ImGui::Button(oxorany("VERIFYING..."), ImVec2(-1, 48));
                 ImGui::PopStyleVar();
             } else {
-                if (ImGui::Button(xorstr_("LOGIN"), ImVec2(-1, 48))) {
+                if (ImGui::Button(oxorany("LOGIN"), ImVec2(-1, 48))) {
                     is_authenticating = true;
-                    snprintf(auth_status, sizeof(auth_status), xorstr_("Connecting to server..."));
+                    snprintf(auth_status, sizeof(auth_status), oxorany("Connecting to server..."));
                     std::string temp_key(user_input_key);
                     std::string temp_hwid(cached_uuid);
                     std::thread([temp_key, temp_hwid]() {
@@ -2514,7 +2521,7 @@ void DrawMenu(ImGuiIO& io) {
 
         ImGui::SetWindowFontScale(0.80f);
         float totalWidth = ImGui::GetContentRegionAvail().x;
-        float btnWidth = (totalWidth - (style.ItemSpacing.x * 3)) / 4.0f;
+        float btnWidth = (totalWidth - (style.ItemSpacing.x * 4)) / 5.0f;
 
         auto NavBtn = [&](const char* label, int id) {
             bool is_active = (tab == id);
@@ -2529,135 +2536,189 @@ void DrawMenu(ImGuiIO& io) {
             ImGui::PopStyleVar();
         };
 
-        NavBtn(xorstr_("VISUAL"), 1); ImGui::SameLine();
-        NavBtn(xorstr_("COMBAT"), 2); ImGui::SameLine();
-        NavBtn(xorstr_("MEMORY"), 3); ImGui::SameLine();
-        NavBtn(xorstr_("INFO"),   4);
+        NavBtn(oxorany("VISUAL"), 1); ImGui::SameLine();
+        NavBtn(oxorany("COMBAT"), 2); ImGui::SameLine();
+        NavBtn(oxorany("MEMORY"), 3); ImGui::SameLine();
+        NavBtn(oxorany("UI"),     4); ImGui::SameLine();
+        NavBtn(oxorany("INFO"),   5);
 
         ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
-        ImGui::BeginChild(xorstr_("##MainContent"), ImVec2(0, 0), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
+        ImGui::BeginChild(oxorany("##MainContent"), ImVec2(0, 0), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
 
         if (tab == 1) {
             ImGui::Spacing();
-            if (ImGui::BeginTable(xorstr_("##V_T"), 2, ImGuiTableFlags_SizingStretchProp)) {
+            if (ImGui::BeginTable(oxorany("##V_T"), 2, ImGuiTableFlags_SizingStretchProp)) {
                 ImGui::TableNextColumn();
-                ImGui::TextColored(themeColor, xorstr_("ESP SETTINGS"));
+                ImGui::TextColored(themeColor, oxorany("ESP SETTINGS"));
                 ImGui::Separator(); ImGui::Spacing();
-                need_sync |= Checkbox(xorstr_("ENABLE ESP"),    &sync_bool["bESP"]);
-                need_sync |= Combo(xorstr_("Starting Point"),   &sync_int["iESP_Point"], espPoint, IM_ARRAYSIZE(espPoint));
-                need_sync |= Checkbox(xorstr_("LINE"),          &sync_bool["bESP_Line"]);
-                need_sync |= Checkbox(xorstr_("LINE [ BOT ]"),  &sync_bool["bESP_LineBots"]);
-                need_sync |= Checkbox(xorstr_("SKELETON"),      &sync_bool["bESP_Skeleton"]);
-                need_sync |= Checkbox(xorstr_("BOX"),           &sync_bool["bESP_Box"]);
-                need_sync |= Checkbox(xorstr_("HEALTH"),        &sync_bool["bESP_Health"]);
-                need_sync |= Checkbox(xorstr_("NAME"),          &sync_bool["bESP_Name"]);
-                need_sync |= Checkbox(xorstr_("TEAM ID"),       &sync_bool["bESP_TeamID"]);
+                need_sync |= Checkbox(oxorany("ENABLE ESP"),   &sync_bool["bESP"]);
+                need_sync |= Combo("Starting Point",           &sync_int["iESP_Point"], espPoint, IM_ARRAYSIZE(espPoint));
+                need_sync |= Checkbox(oxorany("LINE"),         &sync_bool["bESP_Line"]);
+                need_sync |= Checkbox(oxorany("LINE [ BOT ]"), &sync_bool["bESP_LineBots"]);
+                need_sync |= Checkbox(oxorany("SKELETON"),     &sync_bool["bESP_Skeleton"]);
+                need_sync |= Checkbox(oxorany("BOX"),          &sync_bool["bESP_Box"]);
+                need_sync |= Checkbox(oxorany("HEALTH"),       &sync_bool["bESP_Health"]);
+                need_sync |= Checkbox(oxorany("NAME"),         &sync_bool["bESP_Name"]);
+                need_sync |= Checkbox(oxorany("TEAM ID"),      &sync_bool["bESP_TeamID"]);
+                need_sync |= Checkbox(oxorany("OFFSCREEN"),    &sync_bool["bESP_OffScreen"]);
 
                 ImGui::TableNextColumn();
-                ImGui::TextColored(themeColor, xorstr_("COLOR CONFIG"));
+                ImGui::TextColored(themeColor, oxorany("COLOR CONFIG"));
                 ImGui::Separator(); ImGui::Spacing();
 
                 auto ColorRow = [&](const char* name, std::string key1, std::string key2) {
                     ImGui::Text("%s", name); ImGui::SameLine(85);
                     ImGui::PushID(key1.c_str());
                     ImGui::PushItemWidth(30);
-                    if (ImGui::ColorEdit4(xorstr_("##vis"), &colors[key1].Value.x, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel)) need_sync = true;
+                    if (ImGui::ColorEdit4(oxorany("##vis"), &colors[key1].Value.x, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel)) need_sync = true;
                     ImGui::PopItemWidth(); ImGui::PopID();
                     ImGui::SameLine();
                     ImGui::PushID(key2.c_str());
                     ImGui::PushItemWidth(30);
-                    if (ImGui::ColorEdit4(xorstr_("##hid"), &colors[key2].Value.x, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel)) need_sync = true;
+                    if (ImGui::ColorEdit4(oxorany("##hid"), &colors[key2].Value.x, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel)) need_sync = true;
                     ImGui::PopItemWidth(); ImGui::PopID();
                 };
 
-                ColorRow(xorstr_("BOT"),   "cESP_LineBots",  "cESP_LineBotsHidden");
-                ColorRow(xorstr_("ENEMY"), "cESP_Line",      "cESP_LineHidden");
-                ColorRow(xorstr_("SKEL"),  "cESP_Skeleton",  "cESP_SkeletonHidden");
+                ColorRow(oxorany("BOT"),   "cESP_LineBots", "cESP_LineBotsHidden");
+                ColorRow(oxorany("ENEMY "), "cESP_Line",    "cESP_LineHidden");
+                ColorRow(oxorany("SKEL"),  "cESP_Skeleton", "cESP_SkeletonHidden");
                 ImGui::EndTable();
             }
             ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
             ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.7f);
-            need_sync |= SliderFloat(xorstr_("Esp Line Size"), &sync_float["fESP_LineThickness"], 1.0f, 10.0f);
+            need_sync |= SliderFloat(oxorany("Esp Line Size"), &sync_float["fESP_LineThickness"], 1.0f, 10.0f);
             ImGui::PopItemWidth();
         }
 
         if (tab == 2) {
-            if (ImGui::BeginTable(xorstr_("##C_T"), 2, ImGuiTableFlags_SizingStretchProp)) {
+            if (ImGui::BeginTable(oxorany("##C_T"), 2, ImGuiTableFlags_SizingStretchProp)) {
                 ImGui::TableNextColumn();
-                ImGui::TextColored(themeColor, xorstr_("AIMBOT SETTINGS"));
+                ImGui::TextColored(themeColor, oxorany("AIMBOT SETTINGS"));
                 ImGui::Separator(); ImGui::Spacing();
-                need_sync |= Checkbox(xorstr_("Enable Aimbot"),   &sync_bool["bAIM"]);
-                need_sync |= Combo(xorstr_("Trigger"),            &sync_int["iAIM_Trigger"],    aimbotTrigger, IM_ARRAYSIZE(aimbotTrigger));
-                need_sync |= Combo(xorstr_("Target Bone"),        &sync_int["iAIM_TargetBone"], targetBone,    IM_ARRAYSIZE(targetBone));
-                need_sync |= Checkbox(xorstr_("Draw Snapline"),   &sync_bool["bAIM_SnapLine"]);
+                need_sync |= Checkbox(oxorany("Enable Aimbot"),  &sync_bool["bAIM"]);
+                need_sync |= Combo("Trigger",                    &sync_int["iAIM_Trigger"],    aimbotTrigger, IM_ARRAYSIZE(aimbotTrigger));
+                need_sync |= Combo("Target Bone",                &sync_int["iAIM_TargetBone"], targetBone,    IM_ARRAYSIZE(targetBone));
+                need_sync |= Checkbox(oxorany("Draw Snapline"),  &sync_bool["bAIM_SnapLine"]);
                 ImGui::PushItemWidth(120);
-                need_sync |= SliderFloat(xorstr_("Aim Snap Strength"), &sync_float["fAIM_SnapStrength"], 0.001f, 1.0f);
+                need_sync |= SliderFloat(oxorany("Aim Snap Strength"), &sync_float["fAIM_SnapStrength"], 0.001f, 1.0f);
                 ImGui::PopItemWidth();
                 ImGui::Spacing(); ImGui::Spacing();
-                ImGui::TextColored(themeColor, xorstr_("TARGET FILTERS"));
+                ImGui::TextColored(themeColor, oxorany("TARGET FILTERS"));
                 ImGui::Separator(); ImGui::Spacing();
-                need_sync |= Checkbox(xorstr_("Visible Check"),   &sync_bool["bAIM_CheckVisibility"]);
-                need_sync |= Checkbox(xorstr_("Ignore Bots"),     &sync_bool["bAIM_IgnoreBots"]);
-                need_sync |= Checkbox(xorstr_("Ignore Knocked"),  &sync_bool["bAIM_IgnoreKnocked"]);
+                need_sync |= Checkbox(oxorany("Visible Check"),  &sync_bool["bAIM_CheckVisibility"]);
+                need_sync |= Checkbox(oxorany("Ignore Bots"),    &sync_bool["bAIM_IgnoreBots"]);
+                need_sync |= Checkbox(oxorany("Ignore Knocked"), &sync_bool["bAIM_IgnoreKnocked"]);
 
                 ImGui::TableNextColumn();
-                ImGui::TextColored(themeColor, xorstr_("FOV CONFIG"));
+                ImGui::TextColored(themeColor, oxorany("FOV CONFIG"));
                 ImGui::Separator(); ImGui::Spacing();
-                need_sync |= Checkbox(xorstr_("Draw FOV Circle"), &sync_bool["bAIM_DrawFov"]);
-                need_sync |= Checkbox(xorstr_("Hide FOV if safe"),&sync_bool["bAIM_NoTargetHideFov"]);
+                need_sync |= Checkbox(oxorany("Draw FOV Circle"),  &sync_bool["bAIM_DrawFov"]);
+                need_sync |= Checkbox(oxorany("Hide FOV if safe"), &sync_bool["bAIM_NoTargetHideFov"]);
                 ImGui::Spacing();
                 ImGui::PushItemWidth(120);
-                need_sync |= SliderFloat(xorstr_("Fov Size"), &sync_float["fAIM_Fov"], 30.0f, 1500.0f);
+                need_sync |= SliderFloat(oxorany("Fov Size"), &sync_float["fAIM_Fov"], 30.0f, 1500.0f);
                 ImGui::PopItemWidth();
                 ImGui::EndTable();
             }
         }
 
         if (tab == 3) {
-            if (ImGui::BeginTable(xorstr_("##M_T"), 2, ImGuiTableFlags_SizingStretchProp)) {
+            if (ImGui::BeginTable(oxorany("##M_T"), 2, ImGuiTableFlags_SizingStretchProp)) {
                 ImGui::TableNextColumn();
-                ImGui::TextColored(themeColor, xorstr_("WEAPON EXPLOITS"));
+                ImGui::TextColored(themeColor, oxorany("WEAPON EXPLOITS"));
                 ImGui::Separator(); ImGui::Spacing();
-                need_sync |= Checkbox(xorstr_("NoRecoil"),    &sync_bool["bNoRecoil"]);
-                need_sync |= Checkbox(xorstr_("No Spread"),   &sync_bool["bNoSpread"]);
-                need_sync |= Checkbox(xorstr_("Fast Switch"),  &sync_bool["bSwitch"]);
-                need_sync |= Checkbox(xorstr_("Unlock Skin"), &sync_bool["bSkinHack"]);
-                need_sync |= Checkbox(xorstr_("Magic Bullet"),&sync_bool["bMagic"]);
-                need_sync |= Checkbox(xorstr_("Bullet Track"),&sync_bool["bBulletTrack"]);
+                need_sync |= Checkbox(oxorany("NoRecoil"),     &sync_bool["bNoRecoil"]);
+                need_sync |= Checkbox(oxorany("No Spread"),    &sync_bool["bNoSpread"]);
+                need_sync |= Checkbox(oxorany("Fast Switch"),  &sync_bool["bSwitch"]);
+                need_sync |= Checkbox(oxorany("Unlock Skin"),  &sync_bool["bSkinHack"]);
+                need_sync |= Checkbox(oxorany("Magic Bullet"), &sync_bool["bMagic"]);
+                need_sync |= Checkbox(oxorany("Bullet Track"), &sync_bool["bBulletTrack"]);
+                if (sync_bool["bBulletTrack"]) {
+                    ImGui::PushItemWidth(120);
+                    need_sync |= SliderFloat(oxorany("BT Probability"), &sync_float["fBulletTrack_Probability"], 1.0f, 100.0f);
+                    ImGui::PopItemWidth();
+                }
 
                 ImGui::TableNextColumn();
-                ImGui::TextColored(themeColor, xorstr_("PLAYER EXPLOITS"));
+                ImGui::TextColored(themeColor, oxorany("PLAYER EXPLOITS"));
                 ImGui::Separator(); ImGui::Spacing();
-                need_sync |= Checkbox(xorstr_("Wallhack Red"), &sync_bool["bXray"]);
-                need_sync |= Checkbox(xorstr_("Speed Boost"),  &sync_bool["bSpeed"]);
+                need_sync |= Checkbox(oxorany("Wallhack Red"),  &sync_bool["bXray"]);
+                need_sync |= Checkbox(oxorany("Speed Boost"),   &sync_bool["bSpeed"]);
                 if (sync_bool["bSpeed"]) {
                     ImGui::Spacing();
                     ImGui::PushItemWidth(120);
-                    need_sync |= SliderFloat(xorstr_("Speed Multiplier"), &sync_float["fSpeed"], 1.0f, 1.5f);
+                    need_sync |= SliderFloat(oxorany("Speed Multiplier"), &sync_float["fSpeed"], 1.0f, 1.5f);
                     ImGui::PopItemWidth();
                 }
-                need_sync |= Checkbox(xorstr_("High Jump"),   &sync_bool["bjump"]);
+                need_sync |= Checkbox(oxorany("High Jump"), &sync_bool["bjump"]);
                 if (sync_bool["bjump"]) {
                     ImGui::Spacing();
                     ImGui::PushItemWidth(120);
-                    need_sync |= SliderFloat(xorstr_("Jump Force"), &sync_float["fbjump"], 1.0f, 5.0f);
+                    need_sync |= SliderFloat(oxorany("Jump Force"), &sync_float["fbjump"], 1.0f, 5.0f);
                     ImGui::PopItemWidth();
                 }
+                need_sync |= Checkbox(oxorany("White Body"), &sync_bool["bBodyColorWhite"]);
                 ImGui::EndTable();
             }
             last_sync_bool = sync_bool;
         }
 
         if (tab == 4) {
-            if (ImGui::BeginTable(xorstr_("##I_T"), 2, ImGuiTableFlags_SizingStretchProp)) {
+            if (ImGui::BeginTable(oxorany("##UI_T"), 2, ImGuiTableFlags_SizingStretchProp)) {
                 ImGui::TableNextColumn();
-                ImGui::TextColored(accentColor, xorstr_("VIP STATUS"));
+                ImGui::TextColored(themeColor, oxorany("MENU STYLING"));
+                ImGui::Separator(); ImGui::Spacing();
+
+                static bool style_changed = false;
+                ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.7f);
+                if (ImGui::Combo(oxorany("Theme"), &current_theme, themes, IM_ARRAYSIZE(themes))) {
+                    switch_theme(current_theme);
+                    style_changed = true;
+                }
+                if (ImGui::SliderFloat(oxorany("Rounding"), &Rounding, 0.0f, 20.0f)) {
+                    style.FrameRounding   = Rounding;
+                    style.WindowRounding  = Rounding;
+                    style.ChildRounding   = Rounding;
+                    style.PopupRounding   = Rounding;
+                    style.ScrollbarRounding = Rounding;
+                    style.GrabRounding    = Rounding;
+                    style.LogSliderDeadzone = Rounding;
+                    style.TabRounding     = Rounding;
+                    style_changed = true;
+                }
+                style_changed |= ImGui::SliderFloat(oxorany("Opacity"),      &style.Alpha,            0.6f, 1.0f);
+                style_changed |= ImGui::SliderFloat(oxorany("Border Size"),  &style.FrameBorderSize,  0.0f, 5.0f);
+                style_changed |= ImGui::SliderFloat(oxorany("Scrollbar Size"),&style.ScrollbarSize,  10.0f, 50.0f);
+                ImGui::PopItemWidth();
+                if (style_changed) save_imgui_style(&style);
+
+                ImGui::TableNextColumn();
+                ImGui::TextColored(themeColor, oxorany("SYSTEM SETTINGS"));
+                ImGui::Separator(); ImGui::Spacing();
+                bool settings_changed = false;
+                settings_changed |= Checkbox(oxorany("RememberSettings (restart req)"), &features["bImguiAutoSave"]);
+                ImGui::PushItemWidth(120);
+                settings_changed |= SliderFloat(oxorany("FontScale (restart req)"), &features_float["fFontScale"], 30.0f, 60.0f);
+                ImGui::PopItemWidth();
+                settings_changed |= Checkbox(oxorany("Better Touch (May crash)"), &_features["bBetterTouch"]);
+                if (settings_changed) save_features();
+
+                ImGui::EndTable();
+            }
+        }
+
+        if (tab == 5) {
+            if (ImGui::BeginTable(oxorany("##I_T"), 2, ImGuiTableFlags_SizingStretchProp)) {
+                ImGui::TableNextColumn();
+                ImGui::TextColored(accentColor, oxorany("VIP STATUS"));
                 ImGui::Separator(); ImGui::Spacing();
                 if (strlen(vip_username_str) > 0) {
-                    ImGui::TextDisabled(xorstr_("USER:")); ImGui::SameLine();
+                    ImGui::TextDisabled(oxorany("USER:"));
+                    ImGui::SameLine();
                     ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.1f, 1.0f), "%s", vip_username_str);
                 }
-                ImGui::TextDisabled(xorstr_("DAYS REMAINING:")); ImGui::SameLine();
+                ImGui::TextDisabled(oxorany("DAYS REMAINING:"));
+                ImGui::SameLine();
                 if (vip_days_received) {
                     float dr = (float)vip_days_remaining;
                     ImVec4 daysColor = dr > 7 ? ImVec4(0.3f,1.0f,0.3f,1.0f)
@@ -2665,27 +2726,28 @@ void DrawMenu(ImGuiIO& io) {
                                      :          ImVec4(1.0f,0.2f,0.2f,1.0f);
                     ImGui::TextColored(daysColor, "%d DAYS", vip_days_remaining);
                 } else {
-                    ImGui::TextDisabled(xorstr_("---"));
+                    ImGui::TextDisabled(oxorany("---"));
                 }
                 ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
-                ImGui::TextColored(themeColor, xorstr_("ABOUT"));
+                ImGui::TextColored(themeColor, oxorany("ABOUT"));
                 ImGui::Separator(); ImGui::Spacing();
-                ImGui::Text(xorstr_("DEVELOPER : SACREDBS VIP"));
+                ImGui::Text(oxorany("DEVELOPER : SACREDBS VIP"));
                 ImGui::Spacing();
-                ImGui::Text(xorstr_("OFFICIAL TELEGRAM : T.ME/SACREDBS_VIP"));
+                ImGui::Text(oxorany("OFFICIAL TELEGRAM : T.ME/SACREDBS_VIP"));
                 ImGui::Spacing(); ImGui::Spacing();
-                ImGui::TextDisabled(xorstr_("LAUNCHER VERSION : 1.003.650015"));
+                ImGui::TextDisabled(oxorany("LAUNCHER VERSION : 1.003.650015"));
                 ImGui::Separator(); ImGui::Spacing();
-                ImGui::TextColored(themeColor, xorstr_("FIX HACK NOT WORKING"));
+                ImGui::TextColored(themeColor, oxorany("FIX HACK NOT WORKING"));
                 ImGui::Separator(); ImGui::Spacing();
-                ImGui::TextDisabled(xorstr_("make sure your bloodstrike version is the same in the version of this launcher"));
-                ImGui::TextDisabled(xorstr_("if the bloodstrike version and this launcher is same follow the next step"));
                 ImGui::Spacing(); ImGui::Spacing();
-                ImGui::TextDisabled(xorstr_("step 1: go to firing range and check the ENABLE ESP, ESP LINE [ BOT ]"));
-                ImGui::TextDisabled(xorstr_("step 2: turn off wifi/data then wait for the bloodstrike login screen appears"));
-                ImGui::TextDisabled(xorstr_("step 3: if the login screen appears then turn on your wifi/data then wait"));
-                ImGui::TextDisabled(xorstr_("for the bloodstrike to load, you can click whatever in the login screen then"));
-                ImGui::TextDisabled(xorstr_("when it loads then congrats, the cheat is now working. you can quit the firing range!"));
+                ImGui::TextDisabled(oxorany("make sure your bloodstrike version is the same in the version of this launcher"));
+                ImGui::TextDisabled(oxorany("if the bloodstrike version and this launcher is same follow the next step"));
+                ImGui::Spacing(); ImGui::Spacing();
+                ImGui::TextDisabled(oxorany("step 1: go to firing range and check the ENABLE ESP, ESP LINE [ BOT ] "));
+                ImGui::TextDisabled(oxorany("step 2: turn off wifi/data then wait for the bloodstrike login screen appears"));
+                ImGui::TextDisabled(oxorany("step 3: if the login screen appears then turn on your wifi/data then wait"));
+                ImGui::TextDisabled(oxorany("for the bloodstrike to load, you can click whatever in the login screen then "));
+                ImGui::TextDisabled(oxorany("when it loads then congrats, the cheat is now working. you can quit the firing range!"));
                 ImGui::EndTable();
             }
         }
