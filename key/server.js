@@ -180,26 +180,36 @@ app.get('/checkpoint', async (req, res) => {
     }
 });
 
+// Helper: build a signed verify response (MD5 seal + timestamp for anti-crack / anti-replay)
+function buildVerifyResponse(isSuccess, message, hwid) {
+    const timestamp  = Date.now().toString();
+    const dataToHash = SERVER_SECRET + isSuccess.toString() + timestamp + hwid;
+    const sig        = crypto.createHash('md5').update(dataToHash).digest('hex');
+    return { success: isSuccess, message, ts: timestamp, sig };
+}
+
 // Verify — handles both FREE keys (hwid already set) and VIP keys (hwid null = first activation)
 app.get('/verify', async (req, res) => {
     const { key, hwid } = req.query;
-    if (!key || !hwid) return res.json({ success: false, reason: 'Missing params' });
+    if (!key || !hwid) {
+        return res.json(buildVerifyResponse(false, 'Missing params', hwid || ''));
+    }
 
     try {
         const rows = await sql`SELECT * FROM keys WHERE key_string = ${key} LIMIT 1`;
 
         if (rows.length === 0) {
-            return res.json({ success: false, reason: 'Invalid key' });
+            return res.json(buildVerifyResponse(false, 'Invalid key', hwid));
         }
 
         const found = rows[0];
 
         if (found.revoked) {
-            return res.json({ success: false, reason: 'Key revoked by admin' });
+            return res.json(buildVerifyResponse(false, 'Key revoked by admin', hwid));
         }
 
         if (Date.now() >= Number(found.expires_at)) {
-            return res.json({ success: false, reason: 'Key expired' });
+            return res.json(buildVerifyResponse(false, 'Key expired', hwid));
         }
 
         // Compute days remaining
@@ -214,17 +224,19 @@ app.get('/verify', async (req, res) => {
                 const reason = !found.hwid
                     ? 'Free key was reset. Generate a new one at bskey.vercel.app'
                     : 'This free key was generated for a different device. Get your own at bskey.vercel.app';
-                return res.json({ success: false, reason });
+                return res.json(buildVerifyResponse(false, reason, hwid));
             }
-            return res.json({ success: true, days_remaining: daysRemaining, username });
+            const payload = buildVerifyResponse(true, `Welcome back, ${username}! ${daysRemaining}d left`, hwid);
+            return res.json({ ...payload, days_remaining: daysRemaining, username });
         }
 
         // VIP key: NO device binding — any phone/device can use it freely
-        return res.json({ success: true, days_remaining: daysRemaining, username });
+        const payload = buildVerifyResponse(true, `Welcome back, ${username}! ${daysRemaining}d left`, hwid);
+        return res.json({ ...payload, days_remaining: daysRemaining, username });
 
     } catch (err) {
         console.error('verify error:', err.message || err);
-        return res.status(500).json({ success: false, reason: 'Server error' });
+        return res.json(buildVerifyResponse(false, 'Server error', hwid));
     }
 });
 

@@ -90,6 +90,16 @@ std::string GetCleanUUID() {
 #include <openssl/md5.h>
 #include <iomanip>
 #include <sstream>
+#include <cmath>
+
+std::string GetMD5Hash(const std::string& input) {
+    unsigned char digest[MD5_DIGEST_LENGTH];
+    MD5((unsigned char*)input.c_str(), input.size(), digest);
+    std::ostringstream ss;
+    for (int i = 0; i < MD5_DIGEST_LENGTH; i++)
+        ss << std::hex << std::setw(2) << std::setfill('0') << (int)digest[i];
+    return ss.str();
+}
 
 std::string GenerateSecuritySignature(const std::string& hwid) {
     std::string secret = oxorany("SJSIDIIDJEJRKRKRKKRDIIDIDKDKDKDKFKTJTJJFJFJJFFKFKKFKFKFKFIDIR");
@@ -167,38 +177,52 @@ bool VerifyKeyWithServer(const std::string& key, const std::string& uuid) {
     if (res == CURLE_OK) {
         try {
             auto data = json::parse(chunk.memory);
-            if (data.contains(oxorany("success")) && data[oxorany("success")].is_boolean()) {
-                isSuccess = data[oxorany("success")].get<bool>();
-                if (!isSuccess) {
-                    const char* reason = "Invalid or Expired Key!";
-                    if (data.contains("reason") && data["reason"].is_string()) {
-                        std::string r = data["reason"].get<std::string>();
-                        if (r.find("different device") != std::string::npos)
-                            reason = "Key bound to different device!";
-                        else if (r.find("revoked") != std::string::npos)
-                            reason = "Key revoked by admin!";
-                        else if (r.find("expired") != std::string::npos)
-                            reason = "Key expired!";
-                        else if (r.find("reset") != std::string::npos)
-                            reason = "Key reset by admin! Get new free key.";
+
+            // 1. Require both security fields
+            if (data.contains(oxorany("sig")) && data.contains(oxorany("ts"))) {
+                bool        server_bool = data[oxorany("success")].get<bool>();
+                std::string server_msg  = data.value(oxorany("message"), "");
+                std::string server_ts   = data[oxorany("ts")].get<std::string>();
+                std::string server_sig  = data[oxorany("sig")].get<std::string>();
+
+                // 2. Recompute MD5 locally — SALT must match SERVER_SECRET in server.js
+                std::string SALT      = oxorany("SJSIDIIDJEJRKRKRKKRDIIDIDKDKDKDKFKTJTJJFJFJJFFKFKKFKFKFKFIDIR");
+                std::string rawData   = SALT + (server_bool ? oxorany("true") : oxorany("false")) + server_ts + uuid;
+                std::string client_sig = GetMD5Hash(rawData);
+
+                // 3. Verify signature
+                if (client_sig == server_sig) {
+                    // 4. Check for replay attack (reject responses older than 5 minutes)
+                    long long ts_val = std::stoll(server_ts);
+                    long long now    = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                        std::chrono::system_clock::now().time_since_epoch()).count();
+
+                    if (std::abs(now - ts_val) < 300000LL) {
+                        if (server_bool) {
+                            if (data.contains(oxorany("days_remaining")) && data[oxorany("days_remaining")].is_number()) {
+                                vip_days_remaining = data[oxorany("days_remaining")].get<int>();
+                                vip_days_received  = true;
+                            }
+                            if (data.contains(oxorany("username")) && data[oxorany("username")].is_string()) {
+                                std::string uname = data[oxorany("username")].get<std::string>();
+                                strncpy(vip_username_str, uname.c_str(), sizeof(vip_username_str) - 1);
+                            }
+                            snprintf(auth_status, sizeof(auth_status), "%s",
+                                     server_msg.empty() ? oxorany("Login Successful!") : server_msg.c_str());
+                            auth_state.store(AUTH_SUCCESS);
+                            isSuccess = true;
+                        } else {
+                            snprintf(auth_status, sizeof(auth_status), "%s",
+                                     server_msg.empty() ? oxorany("Login Failed") : server_msg.c_str());
+                        }
+                    } else {
+                        snprintf(auth_status, sizeof(auth_status), oxorany("Security: Response Expired"));
                     }
-                    snprintf(auth_status, sizeof(auth_status), "Login Failed: %s", reason);
                 } else {
-                    // Parse days remaining and username from server response
-                    if (data.contains("days_remaining") && data["days_remaining"].is_number()) {
-                        vip_days_remaining = data["days_remaining"].get<int>();
-                        vip_days_received  = true;
-                    }
-                    if (data.contains("username") && data["username"].is_string()) {
-                        std::string uname = data["username"].get<std::string>();
-                        strncpy(vip_username_str, uname.c_str(), sizeof(vip_username_str) - 1);
-                    }
-                    snprintf(auth_status, sizeof(auth_status), oxorany("Login Successful!"));
-                    // [ANTI-CRACK] Store magic state instead of true/false
-                    auth_state.store(AUTH_SUCCESS); 
+                    snprintf(auth_status, sizeof(auth_status), oxorany("Security: Hash Mismatch Detected"));
                 }
             } else {
-                snprintf(auth_status, sizeof(auth_status), oxorany("Server Error: Contact Developer"));
+                snprintf(auth_status, sizeof(auth_status), oxorany("Server Error: Invalid Protocol"));
             }
         } catch (const json::parse_error& e) {
             snprintf(auth_status, sizeof(auth_status), oxorany("Bad Server Response! Contact Developer"));
