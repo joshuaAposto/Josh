@@ -20,6 +20,10 @@
 #include "block.h"
 #include "FireWall.h"
 
+// ========== CHAMS / RENDER ==========
+#include "variables.h"
+#include "Chams.h"
+
 
 DEFINES(void*, _v07, const char *filename, int flags) { return nullptr; }
 DEFINES(void*, _xv07, const char *filename, int flags) { return nullptr; }
@@ -52,6 +56,7 @@ void *__1__(void *) {
     sleep(1);
     initAntiDetection();
     hookFunctions();
+    initChams();
     // ============================================
     
     if (!fdlopen("libGame.so", 0)) return 0;

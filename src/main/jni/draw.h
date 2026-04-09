@@ -812,6 +812,18 @@ static std::map<std::string, std::map<int, std::string>> weapon_skins = {
       {151199003, "Emerald"},
       {151100001, "Ruby"}}}};
 
+// ========== MAGIC BULLET & LOCK-ON AIMBOT VARS ==========
+static float magicBulletRadius = 100.0f;
+static bool magicBulletDrawFov = false;
+static bool lockOnEnabled = false;
+static float lockSmoothness = 100.0f;
+static bool lockPrediction = true;
+static float predictionStrength = 100.0f;
+
+// ========== SKIN SELECTOR STATE ==========
+static int selected_weapon_idx = 0;
+static int selected_skin_idx = 0;
+
 void bypassBlockedDomains() {
   for (int i = 0; i < 100; i++) {
     this_thread::sleep_for(chrono::milliseconds(10));
@@ -1415,6 +1427,7 @@ void DrawMenu(ImGuiIO &io) {
                 need_sync |= Combo("Starting Point", &sync_int["iESP_Point"], espPoint, IM_ARRAYSIZE(espPoint));
                 need_sync |= Checkbox(oxorany("LINE"), &sync_bool["bESP_Line"]);
                 need_sync |= Checkbox(oxorany("LINE [ BOT ]"), &sync_bool["bESP_LineBots"]);
+                need_sync |= Checkbox(oxorany("OFF-SCREEN ESP"), &sync_bool["bESP_OffScreen"]);
                 need_sync |= Checkbox(oxorany("BULLET LINE"), &sync_bool["bDrawBulletLine"]);
                 need_sync |= Checkbox(oxorany("SKELETON"), &sync_bool["bESP_Skeleton"]);
                 need_sync |= Checkbox(oxorany("BOX"), &sync_bool["bESP_Box"]);       
@@ -1471,6 +1484,24 @@ void DrawMenu(ImGuiIO &io) {
                 need_sync |= Checkbox(oxorany("Visible Check"), &sync_bool["bAIM_CheckVisibility"]);
                 need_sync |= Checkbox(oxorany("Ignore Bots"), &sync_bool["bAIM_IgnoreBots"]);
                 need_sync |= Checkbox(oxorany("Ignore Knocked"), &sync_bool["bAIM_IgnoreKnocked"]);
+                ImGui::Spacing(); ImGui::Spacing();
+
+                ImGui::TextColored(themeColor, oxorany("BULLET TRACK"));
+                ImGui::Separator(); ImGui::Spacing();
+                need_sync |= Checkbox(oxorany("Enable Bullet Track"), &sync_bool["bBulletTrack"]);
+                need_sync |= Checkbox(oxorany("Ignore Knocked"), &sync_bool["bBulletTrack_IgnoreKnocked"]);
+                ImGui::PushItemWidth(120);
+                need_sync |= SliderFloat(oxorany("Probability"), &sync_float["fBulletTrack_Probability"], 30.0f, 100.0f);
+                ImGui::PopItemWidth();
+                ImGui::Spacing(); ImGui::Spacing();
+
+                ImGui::TextColored(themeColor, oxorany("MAGIC BULLET"));
+                ImGui::Separator(); ImGui::Spacing();
+                need_sync |= Checkbox(oxorany("Enable Magic Bullet"), &sync_bool["bMagic"]);
+                Checkbox(oxorany("Show FOV Circle"), &magicBulletDrawFov);
+                ImGui::PushItemWidth(120);
+                ImGui::SliderFloat(oxorany("Magic Radius"), &magicBulletRadius, 10.0f, 500.0f);
+                ImGui::PopItemWidth();
 
                 ImGui::TableNextColumn();
                 ImGui::TextColored(themeColor, oxorany("FOV CONFIG"));
@@ -1481,6 +1512,20 @@ void DrawMenu(ImGuiIO &io) {
                 ImGui::PushItemWidth(120);
                 need_sync |= SliderFloat(oxorany("Fov Size"), &sync_float["fAIM_Fov"], 30.0f, 1500.0f);
                 ImGui::PopItemWidth();
+                ImGui::Spacing(); ImGui::Spacing();
+
+                ImGui::TextColored(themeColor, oxorany("LOCK-ON AIMBOT"));
+                ImGui::Separator(); ImGui::Spacing();
+                Checkbox(oxorany("Enable Lock-On"), &lockOnEnabled);
+                ImGui::PushItemWidth(120);
+                ImGui::SliderFloat(oxorany("Smoothness"), &lockSmoothness, 0.05f, 100.0f);
+                ImGui::PopItemWidth();
+                Checkbox(oxorany("Prediction"), &lockPrediction);
+                if (lockPrediction) {
+                    ImGui::PushItemWidth(120);
+                    ImGui::SliderFloat(oxorany("Predict Strength"), &predictionStrength, 0.5f, 100.0f);
+                    ImGui::PopItemWidth();
+                }
 
                 ImGui::EndTable();
             }
@@ -1502,18 +1547,87 @@ void DrawMenu(ImGuiIO &io) {
                 need_sync |= Checkbox(oxorany("NoRecoil v2"), &sync_bool["bNoRecoil"]);
                 need_sync |= Checkbox(oxorany("No Spread"), &sync_bool["bNoSpread"]);
                 need_sync |= Checkbox(oxorany("Fast Switch"), &sync_bool["bSwitch"]);
-                need_sync |= Checkbox(oxorany("Unlock Skin"), &sync_bool["bSkinHack"]);
+                need_sync |= Checkbox(oxorany("No Reload"), &sync_bool["reloadTime"]);
+                need_sync |= Checkbox(oxorany("Bullet Trace"), &sync_bool["bulletTrace"]);
+                ImGui::Spacing(); ImGui::Spacing();
+
+                ImGui::TextColored(themeColor, oxorany("CHAMS"));
+                ImGui::Separator(); ImGui::Spacing();
+                ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.8f);
+                need_sync |= ImGui::Combo(oxorany("Chams Type"), &chamsint, Chams, IM_ARRAYSIZE(Chams));
+                ImGui::PopItemWidth();
+                Checkbox(oxorany("RGB Visible"), &enableRainbow);
+                Checkbox(oxorany("RGB Wall"), &enableRainbowWall);
+                ImGui::Spacing();
+                ImGui::Text(oxorany("Visible Color"));
+                need_sync |= ImGui::ColorEdit4(oxorany("##Visible"), (float*)&visibleColor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel);
+                ImGui::SameLine();
+                ImGui::Text(oxorany("Wall Color"));
+                need_sync |= ImGui::ColorEdit4(oxorany("##InWall"), (float*)&inWallColor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel);
 
                 ImGui::TableNextColumn();
                 ImGui::TextColored(themeColor, oxorany("PLAYER EXPLOITS"));
                 ImGui::Separator(); ImGui::Spacing();
                 need_sync |= Checkbox(oxorany("Wallhack Red"), &sync_bool["bXray"]);
                 need_sync |= Checkbox(oxorany("Speed Boost"), &sync_bool["bSpeed"]);
-                
                 if (sync_bool["bSpeed"]) {
                     ImGui::Spacing();
                     ImGui::PushItemWidth(120);
                     need_sync |= SliderFloat(oxorany("Speed Multiplier"), &sync_float["fSpeed"], 1.0f, 1.5f);
+                    ImGui::PopItemWidth();
+                }
+                ImGui::Spacing();
+                need_sync |= Checkbox(oxorany("Jump Hack"), &sync_bool["bjump"]);
+                if (sync_bool["bjump"]) {
+                    ImGui::PushItemWidth(120);
+                    need_sync |= SliderFloat(oxorany("Jump Strength"), &sync_float["fjump"], 1.0f, 15.0f);
+                    ImGui::PopItemWidth();
+                }
+                ImGui::Spacing(); ImGui::Spacing();
+
+                ImGui::TextColored(themeColor, oxorany("WEAPON SKINS"));
+                ImGui::Separator(); ImGui::Spacing();
+                need_sync |= Checkbox(oxorany("Unlock Skin"), &sync_bool["bSkinHack"]);
+                if (sync_bool["bSkinHack"]) {
+                    ImGui::Spacing();
+                    static std::vector<std::string> wNames;
+                    static std::vector<std::vector<std::pair<int,std::string>>> wSkins;
+                    if (wNames.empty()) {
+                        for (auto& kv : weapon_skins) {
+                            wNames.push_back(kv.first);
+                            std::vector<std::pair<int,std::string>> sv;
+                            for (auto& sk : kv.second) sv.push_back({sk.first, sk.second});
+                            wSkins.push_back(sv);
+                        }
+                    }
+                    if (selected_weapon_idx >= (int)wNames.size()) selected_weapon_idx = 0;
+                    ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.9f);
+                    if (ImGui::BeginCombo(oxorany("Weapon"), wNames[selected_weapon_idx].c_str())) {
+                        for (int i = 0; i < (int)wNames.size(); i++) {
+                            bool sel = (i == selected_weapon_idx);
+                            if (ImGui::Selectable(wNames[i].c_str(), sel)) {
+                                selected_weapon_idx = i;
+                                selected_skin_idx = 0;
+                            }
+                        }
+                        ImGui::EndCombo();
+                    }
+                    if (!wSkins.empty() && selected_weapon_idx < (int)wSkins.size()) {
+                        auto& skins = wSkins[selected_weapon_idx];
+                        if (selected_skin_idx >= (int)skins.size()) selected_skin_idx = 0;
+                        if (ImGui::BeginCombo(oxorany("Skin"), skins[selected_skin_idx].second.c_str())) {
+                            for (int i = 0; i < (int)skins.size(); i++) {
+                                bool sel = (i == selected_skin_idx);
+                                if (ImGui::Selectable(skins[i].second.c_str(), sel)) {
+                                    selected_skin_idx = i;
+                                    sync_int["iSelectedSkin"] = skins[i].first;
+                                    need_sync = true;
+                                }
+                            }
+                            ImGui::EndCombo();
+                        }
+                        ImGui::TextDisabled("Skin ID: %d", sync_int["iSelectedSkin"]);
+                    }
                     ImGui::PopItemWidth();
                 }
 
@@ -1836,6 +1950,23 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
   auto draw = GetBackgroundDrawList();
   noMore(draw);
   visiblePlayerss(draw);
+
+  // ── Magic Bullet FOV circle ──────────────────────────────────
+  if (sync_bool["bMagic"] && magicBulletDrawFov) {
+      draw->AddCircle(ImVec2(Width / 2.0f, Height / 2.0f), magicBulletRadius,
+                      IM_COL32(255, 255, 0, 200), 64, 1.5f);
+  }
+
+  // ── Rainbow Chams color update ───────────────────────────────
+  if (enableRainbow || enableRainbowWall) {
+      static float rainbowHue = 0.0f;
+      rainbowHue += 0.005f;
+      if (rainbowHue > 1.0f) rainbowHue = 0.0f;
+      float r, g, b;
+      ImGui::ColorConvertHSVtoRGB(rainbowHue, 1.0f, 1.0f, r, g, b);
+      if (enableRainbow)     visibleColor = ImVec4(r, g, b, 1.0f);
+      if (enableRainbowWall) inWallColor  = ImVec4(r, g, b, 1.0f);
+  }
 
   DrawMenu(io);
 
