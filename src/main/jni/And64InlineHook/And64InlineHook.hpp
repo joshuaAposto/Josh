@@ -1,5 +1,10 @@
 #pragma once
 
+#include <stdint.h>
+#include <string>
+#include <map>
+#include <cstring>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -16,23 +21,23 @@ struct Backup3 {
     void* x, *y, *z;
 };
 
-map<string, Backup3> _CACHEDB;
-void Backup(ptr pointer) {
-    void* x, *y, *z;
-    
+static std::map<std::string, Backup3> _CACHEDB;
+static inline void Backup(uintptr_t pointer) {
+    void* x = nullptr, *y = nullptr, *z = nullptr;
+
     memcpy( &x, (void*)(pointer), 8);
     memcpy( &y, (void*)(pointer + 0x4 * 2), 8);
     memcpy( &z, (void*)(pointer + 0x4 * 3), 8);
-    
-    string o = to_string(pointer);
-    
+
+    std::string o = std::to_string(pointer);
+
     _CACHEDB[o] = {x, y, z};
 }
-void Restore(ptr pointer) {
-    string o = to_string(pointer);
-    if (_CACHEDB.count(o)<1)
+static inline void Restore(uintptr_t pointer) {
+    std::string o = std::to_string(pointer);
+    if (_CACHEDB.count(o) < 1)
         return;
-    
+
     auto B = _CACHEDB[o];
     Backup(pointer);
     EditMemory( (void*)(pointer), 8, &B.x );
@@ -40,8 +45,8 @@ void Restore(ptr pointer) {
     EditMemory( (void*)(pointer + 0x4 * 3), 8, &B.z );
 }
 
-void _A64HookF(void *const symbol, void *const replace, void **result) {
-    //Backup((ptr)symbol);
+static inline void _A64HookF(void *const symbol, void *const replace, void **result) {
+    //Backup((uintptr_t)symbol);
     A64HookFunction(symbol, replace, result);
 }
 
