@@ -40,9 +40,9 @@ static inline void Restore(uintptr_t pointer) {
 
     auto B = _CACHEDB[o];
     Backup(pointer);
-    EditMemory( (void*)(pointer), 8, &B.x );
-    EditMemory( (void*)(pointer + 0x4 * 2), 8, &B.y );
-    EditMemory( (void*)(pointer + 0x4 * 3), 8, &B.z );
+    memcpy( (void*)(pointer), &B.x, 8 );
+    memcpy( (void*)(pointer + 0x4 * 2), &B.y, 8 );
+    memcpy( (void*)(pointer + 0x4 * 3), &B.z, 8 );
 }
 
 static inline void _A64HookF(void *const symbol, void *const replace, void **result) {
