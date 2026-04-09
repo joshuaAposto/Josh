@@ -126,6 +126,9 @@ app.get('/generateKey', generateLimiter, async (req, res) => {
             return res.json({ key: existing[0].key_string });
         }
 
+        // Clean up expired sessions for this hwid before creating a new one
+        await sql`DELETE FROM sessions WHERE hwid = ${hwid} AND created_at < ${now - 2 * 60 * 60 * 1000}`;
+
         // Create session
         const sessionId = uuidv4();
         await sql`
@@ -138,13 +141,18 @@ app.get('/generateKey', generateLimiter, async (req, res) => {
         const checkpointUrl  = `${YOUR_DOMAIN}/checkpoint?session_id=${sessionId}`;
         const lootLabsApiUrl = `https://creators.lootlabs.gg/api/public/url_encryptor?destination_url=${encodeURIComponent(checkpointUrl)}&api_token=${LOOT_LINK_API_TOKEN}`;
 
-        const lootRes = await axios.get(lootLabsApiUrl, { timeout: 7000 });
-        if (lootRes.data && lootRes.data.message) {
-            return res.json({ redirect: `${LOOT_LINK_BASE_URL}&data=${lootRes.data.message}` });
+        const lootRes = await axios.get(lootLabsApiUrl, { timeout: 10000 });
+
+        // LootLabs may return the encrypted data under different field names
+        const encryptedData = lootRes.data?.message || lootRes.data?.data || lootRes.data?.encrypted;
+        if (encryptedData) {
+            return res.json({ redirect: `${LOOT_LINK_BASE_URL}&data=${encryptedData}` });
         }
 
         console.error('LootLabs bad response:', JSON.stringify(lootRes.data));
-        return res.json({ error: 'Ad link generation failed. Please try again.' });
+        // Delete the session we just created since we can't use it
+        await sql`DELETE FROM sessions WHERE session_id = ${sessionId}`;
+        return res.json({ error: 'Ad link generation failed. Please try again in a few minutes.' });
 
     } catch (err) {
         console.error('generateKey error:', err.message || err);
@@ -159,19 +167,31 @@ app.get('/checkpoint', async (req, res) => {
 
     try {
         const rows = await sql`SELECT * FROM sessions WHERE session_id = ${session_id} LIMIT 1`;
-        if (rows.length === 0) return res.status(400).send('Session expired. Please go back and try again.');
+        if (rows.length === 0) return res.status(400).send('Session expired. Please go back and generate a new key.');
 
         const session   = rows[0];
+
+        // Validate session is not too old (2 hours max)
+        const sessionAge = Date.now() - Number(session.created_at);
+        if (sessionAge > 2 * 60 * 60 * 1000) {
+            await sql`DELETE FROM sessions WHERE session_id = ${session_id}`;
+            return res.status(400).send('Session expired (too old). Please go back and generate a new key.');
+        }
+
         const newKey    = 'SACRED_' + crypto.randomBytes(4).toString('hex').toUpperCase();
         const expiresAt = Date.now() + (24 * 60 * 60 * 1000);
 
-        await sql`DELETE FROM keys WHERE hwid = ${session.hwid}`;
+        // Only delete FREE_1DAY keys — never delete VIP keys
+        await sql`DELETE FROM keys WHERE hwid = ${session.hwid} AND username = 'FREE_1DAY'`;
         await sql`
             INSERT INTO keys (key_string, hwid, ip_address, expires_at, username, revoked, created_at)
             VALUES (${newKey}, ${session.hwid}, ${session.user_ip}, ${expiresAt}, 'FREE_1DAY', false, ${Date.now()})
         `;
 
+        // Clean up used session and any other stale sessions for this hwid
         await sql`DELETE FROM sessions WHERE session_id = ${session_id}`;
+        await sql`DELETE FROM sessions WHERE hwid = ${session.hwid} AND created_at < ${Date.now() - 2 * 60 * 60 * 1000}`;
+
         return res.redirect(`/?generated_key=${newKey}&success=true`);
 
     } catch (err) {
@@ -408,6 +428,31 @@ app.post('/admin/renew', async (req, res) => {
         res.json({ success: true, newExpiresAt: newExpiry, daysRemaining });
     } catch (e) {
         res.status(500).json({ error: 'DB error' });
+    }
+});
+
+// Admin: clean up old sessions
+app.post('/admin/cleanup-sessions', async (req, res) => {
+    if (!checkAdmin(req, res)) return;
+    try {
+        const cutoff = Date.now() - 2 * 60 * 60 * 1000; // 2 hours
+        const result = await sql`DELETE FROM sessions WHERE created_at < ${cutoff}`;
+        res.json({ success: true, message: 'Old sessions cleaned up' });
+    } catch (e) {
+        res.status(500).json({ error: 'DB error' });
+    }
+});
+
+// Admin: debug LootLabs API response
+app.get('/admin/test-lootlabs', async (req, res) => {
+    if (!checkAdmin(req, res)) return;
+    try {
+        const testUrl    = `${YOUR_DOMAIN}/checkpoint?session_id=test`;
+        const apiUrl     = `https://creators.lootlabs.gg/api/public/url_encryptor?destination_url=${encodeURIComponent(testUrl)}&api_token=${LOOT_LINK_API_TOKEN}`;
+        const lootRes    = await axios.get(apiUrl, { timeout: 10000 });
+        res.json({ status: lootRes.status, data: lootRes.data });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
     }
 });
 
