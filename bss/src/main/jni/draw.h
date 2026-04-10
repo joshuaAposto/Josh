@@ -2276,8 +2276,8 @@ bool CheckVersion_RBS(const std::string& current_version) {
 
     // ── Floating Shield Button (same design as Sacred) ────────────────────
     if (!showMenu) {
-        ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.90f, io.DisplaySize.y * 0.15f), ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
-        ImGui::SetNextWindowSize(ImVec2(80, 88));
+        ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.83f, io.DisplaySize.y * 0.15f), ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
+        ImGui::SetNextWindowSize(ImVec2(92, 92));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 12.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
         ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
@@ -2291,7 +2291,7 @@ bool CheckVersion_RBS(const std::string& current_version) {
             float t = ImGui::GetTime();
             ImDrawList* bdl = ImGui::GetWindowDrawList();
             ImVec2 bp = ImGui::GetWindowPos();
-            float cx = bp.x + 40, cy = bp.y + 44;
+            float cx = bp.x + 46, cy = bp.y + 46;
 
             int ga = (int)(140 + 80 * fabsf(sinf(t * 2.0f)));
             bdl->AddCircle(ImVec2(cx, cy), 42.0f, IM_COL32(200, 20, 20, ga), 32, 3.0f);
@@ -2300,10 +2300,13 @@ bool CheckVersion_RBS(const std::string& current_version) {
             DrawShieldLogo(bdl, ImVec2(cx, cy - 2), 52.0f, t);
 
             ImGui::SetCursorPos(ImVec2(0, 0));
-            ImGui::InvisibleButton("##btn", ImVec2(80, 88));
+            ImGui::InvisibleButton("##btn", ImVec2(92, 92));
             if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
                 ImVec2 delta = ImGui::GetIO().MouseDelta;
-                ImGui::SetWindowPos(ImVec2(ImGui::GetWindowPos().x + delta.x, ImGui::GetWindowPos().y + delta.y));
+                ImVec2 newPos = ImVec2(ImGui::GetWindowPos().x + delta.x, ImGui::GetWindowPos().y + delta.y);
+                newPos.x = fmaxf(4.0f, fminf(newPos.x, io.DisplaySize.x - 96.0f));
+                newPos.y = fmaxf(4.0f, fminf(newPos.y, io.DisplaySize.y - 96.0f));
+                ImGui::SetWindowPos(newPos);
             }
             if (ImGui::IsItemDeactivated() && !ImGui::IsMouseDragging(ImGuiMouseButton_Left, 4.0f)) {
                 showMenu = true;
@@ -2546,7 +2549,7 @@ bool CheckVersion_RBS(const std::string& current_version) {
             ImGui::SetWindowFontScale(scale * 0.72f);
 
             // ── Scrollable content area ──────────────────────────────────
-            ImGui::BeginChild(xorstr_("##RBS_Content"), ImVec2(0, 0), false,
+            ImGui::BeginChild(xorstr_("##RBS_Content"), ImVec2(0, ImGui::GetContentRegionAvail().y - 6.0f), false,
                 ImGuiWindowFlags_AlwaysVerticalScrollbar);
 
             // Sub-tab helper (lambda)
