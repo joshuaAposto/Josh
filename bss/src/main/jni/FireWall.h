@@ -140,7 +140,30 @@ int isBlockedDomain(const char *domain) {
         strstr(domain, OBFUSCATE("g112na-pre.gdl.easebar.com")) ||
         strstr(domain, OBFUSCATE("g108naxx2gb-14.update.easebar.com")) ||
         strstr(domain, OBFUSCATE("g108naxx2gb-14.gph.easebar.com")) ||
-        strstr(domain, OBFUSCATE("g108naxx2gb-14.gsf.easebar.com"))) {
+        strstr(domain, OBFUSCATE("g108naxx2gb-14.gsf.easebar.com")) ||
+        // Critical anti-cheat & reporting domains
+        strstr(domain, OBFUSCATE("reportban.netease.com")) ||
+        strstr(domain, OBFUSCATE("matchreport.bloodstrike.netease.com")) ||
+        strstr(domain, OBFUSCATE("securitycheck.netease.com")) ||
+        strstr(domain, OBFUSCATE("accountsecurity.netease.com")) ||
+        strstr(domain, OBFUSCATE("userlog.bloodstrike.netease.com")) ||
+        strstr(domain, OBFUSCATE("qsec.netease.com")) ||
+        strstr(domain, OBFUSCATE("tinfo.netease.com")) ||
+        strstr(domain, OBFUSCATE("log.qos.netease.com")) ||
+        strstr(domain, OBFUSCATE("tracking.netease.com")) ||
+        strstr(domain, OBFUSCATE("anticheat.bloodstrike.net")) ||
+        strstr(domain, OBFUSCATE("anticheat-api.bloodstrike.com")) ||
+        strstr(domain, OBFUSCATE("report.bloodstrike.net")) ||
+        strstr(domain, OBFUSCATE("report-api.bloodstrike.io")) ||
+        strstr(domain, OBFUSCATE("report-api.bloodstrike.net")) ||
+        strstr(domain, OBFUSCATE("appeal-api.bloodstrike.io")) ||
+        strstr(domain, OBFUSCATE("log.bloodstrike.net")) ||
+        strstr(domain, OBFUSCATE("track.bloodstrike.io")) ||
+        strstr(domain, OBFUSCATE("log-collector.bloodstrike.com")) ||
+        strstr(domain, OBFUSCATE("stat-api.bloodstrike.net")) ||
+        strstr(domain, OBFUSCATE("update-api.bloodstrike.io")) ||
+        strstr(domain, OBFUSCATE("config.bloodstrike.io")) ||
+        strstr(domain, OBFUSCATE("analytics.bloodstrike.netease.com"))) {
         return 1;
     }
     return 0;
