@@ -1137,12 +1137,13 @@ void DrawMenu(ImGuiIO &io) {
             ImVec2 bp = ImGui::GetWindowPos();
             float cx = bp.x + 46, cy = bp.y + 46;
 
-            // outer glow ring
+            // outer glow ring — PushClipRectFullScreen so circle never gets clipped by window padding
+            bdl->PushClipRectFullScreen();
             int ga = (int)(140 + 80 * fabsf(sinf(t * 2.0f)));
-            bdl->AddCircle(ImVec2(cx, cy), 42.0f, IM_COL32(200, 20, 20, ga), 32, 3.0f);
+            bdl->AddCircle(ImVec2(cx, cy), 42.0f, IM_COL32(200, 20, 20, ga), 64, 3.0f);
             bdl->AddCircleFilled(ImVec2(cx, cy), 38.0f, IM_COL32(12, 4, 4, 245));
-
             DrawShieldLogo(bdl, ImVec2(cx, cy - 2), 52.0f, t);
+            bdl->PopClipRect();
 
             // invisible drag + click area
             ImGui::SetCursorPos(ImVec2(0, 0));
