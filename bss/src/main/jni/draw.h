@@ -1022,6 +1022,10 @@ static int iconW = 0, iconH = 0;
 bool showMenu = false;
 static bool bAimTouch = false;
 
+static int   bss_vip_days_remaining = 0;
+static bool  bss_vip_days_received  = false;
+static char  bss_vip_username_str[64] = "";
+
 static JNIEnv* g_env = nullptr;
 static jobject g_context = nullptr;
 
@@ -2113,6 +2117,14 @@ bool VerifyKeyWithServer_RBS(const std::string& key, const std::string& uuid) {
                                     std::chrono::system_clock::now().time_since_epoch()).count();
                     if (std::abs(now - ts_val) < 300000) {
                         if (sv) {
+                            if (data.contains(xorstr_("days_remaining")) && data[xorstr_("days_remaining")].is_number()) {
+                                bss_vip_days_remaining = data[xorstr_("days_remaining")].get<int>();
+                                bss_vip_days_received  = true;
+                            }
+                            if (data.contains(xorstr_("username")) && data[xorstr_("username")].is_string()) {
+                                std::string uname = data[xorstr_("username")].get<std::string>();
+                                strncpy(bss_vip_username_str, uname.c_str(), sizeof(bss_vip_username_str) - 1);
+                            }
                             snprintf(auth_status, sizeof(auth_status), "%s", sm.empty() ? xorstr_("Login Successful!") : sm.c_str());
                             auth_state.store(AUTH_SUCCESS);
                             isSuccess = true;
@@ -2224,60 +2236,82 @@ bool CheckVersion_RBS(const std::string& current_version) {
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,     ImVec2(6.0f, 4.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
 
-    // ── Floating "R" Button ────────────────────────────────────────────────
+    // ── Shield Logo Helper (same as Sacred) ──────────────────────────────
+    auto DrawShieldLogo = [](ImDrawList* ld, ImVec2 center, float sz, float t) {
+        float hw = sz * 0.48f, hh = sz * 0.54f;
+        ImVec2 shield[5] = {
+            ImVec2(center.x - hw, center.y - hh),
+            ImVec2(center.x + hw, center.y - hh),
+            ImVec2(center.x + hw, center.y + hh * 0.25f),
+            ImVec2(center.x,      center.y + hh),
+            ImVec2(center.x - hw, center.y + hh * 0.25f),
+        };
+        ld->AddConvexPolyFilled(shield, 5, IM_COL32(140, 8, 8, 255));
+        float shx = hw * 0.85f, shy = hh * 0.85f;
+        ImVec2 inner[5] = {
+            ImVec2(center.x - shx, center.y - shy),
+            ImVec2(center.x + shx, center.y - shy),
+            ImVec2(center.x + shx, center.y + shy * 0.25f),
+            ImVec2(center.x,       center.y + shy),
+            ImVec2(center.x - shx, center.y + shy * 0.25f),
+        };
+        ld->AddConvexPolyFilled(inner, 5, IM_COL32(180, 12, 12, 180));
+        int ga = (int)(180 + 75 * fabsf(sinf(t * 2.2f)));
+        ld->AddPolyline(shield, 5, IM_COL32(255, 200, 0, ga), ImDrawFlags_Closed, 2.2f);
+        ld->AddRectFilled(
+            ImVec2(center.x - hw * 0.7f, center.y - hh * 0.88f),
+            ImVec2(center.x + hw * 0.7f, center.y - hh * 0.60f),
+            IM_COL32(255, 255, 255, 18), 2.0f);
+        float bw = sz * 0.32f, bh = sz * 0.07f, bc = sz * 0.08f;
+        float sx = center.x - bw * 0.5f, sy = center.y - (bh*3 + bc*2) * 0.5f - sz * 0.04f;
+        ImU32 gc = IM_COL32(255, 215, 0, 255);
+        ld->AddRectFilled(ImVec2(sx, sy),               ImVec2(sx+bw, sy+bh),           gc, 2.0f);
+        ld->AddRectFilled(ImVec2(sx, sy+bh),            ImVec2(sx+bh, sy+bh+bc),        gc);
+        ld->AddRectFilled(ImVec2(sx, sy+bh+bc),         ImVec2(sx+bw, sy+bh*2+bc),      gc, 2.0f);
+        ld->AddRectFilled(ImVec2(sx+bw-bh, sy+bh*2+bc),ImVec2(sx+bw, sy+bh*2+bc+bc),   gc);
+        ld->AddRectFilled(ImVec2(sx, sy+bh*2+bc*2),    ImVec2(sx+bw, sy+bh*3+bc*2),     gc, 2.0f);
+        ld->AddCircleFilled(ImVec2(center.x - hw + 5, center.y - hh + 5), 3.0f, IM_COL32(255,200,0,160));
+        ld->AddCircleFilled(ImVec2(center.x + hw - 5, center.y - hh + 5), 3.0f, IM_COL32(255,200,0,160));
+    };
+
+    // ── Floating Shield Button (same design as Sacred) ────────────────────
     if (!showMenu) {
-        float btnSize = 54.0f;
-        float radius  = btnSize * 0.5f;
-
-        ImGui::SetNextWindowPos(
-            ImVec2(io.DisplaySize.x * 0.90f, io.DisplaySize.y * 0.15f),
-            ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
-        ImGui::SetNextWindowSize(ImVec2(btnSize, btnSize));
-
-        // Make it a perfect circle with purple border — NO NoBackground flag
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding,   radius);
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 2.0f);
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,    ImVec2(0, 0));
-        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.07f, 0.05f, 0.10f, 0.96f));
-        ImGui::PushStyleColor(ImGuiCol_Border,   themeColor);
+        ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.90f, io.DisplaySize.y * 0.15f), ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
+        ImGui::SetNextWindowSize(ImVec2(80, 88));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 12.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+        ImGui::PushStyleColor(ImGuiCol_Border,   ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
 
         if (ImGui::Begin("##OpenMenuBtn", nullptr,
-            ImGuiWindowFlags_NoTitleBar    |
-            ImGuiWindowFlags_NoResize      |
-            ImGuiWindowFlags_NoScrollbar   |
-            ImGuiWindowFlags_NoSavedSettings)) {
+            ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings |
+            ImGuiWindowFlags_NoBackground)) {
 
-            // Glow rings drawn inside the window draw list
-            ImDrawList* dl = ImGui::GetWindowDrawList();
-            ImVec2 wpos    = ImGui::GetWindowPos();
-            ImVec2 center  = ImVec2(wpos.x + radius, wpos.y + radius);
-            dl->AddCircleFilled(center, radius - 1.0f, IM_COL32(14, 9, 20, 240));
-            dl->AddCircle(center, radius - 2.5f, IM_COL32(183, 82, 242, 200), 64, 1.5f);
-            dl->AddCircle(center, radius - 5.5f, IM_COL32(183, 82, 242, 60),  64, 3.5f);
+            float t = ImGui::GetTime();
+            ImDrawList* bdl = ImGui::GetWindowDrawList();
+            ImVec2 bp = ImGui::GetWindowPos();
+            float cx = bp.x + 40, cy = bp.y + 44;
 
-            // Centred "R" text drawn via DrawList so it is never clipped
-            ImGui::SetWindowFontScale(1.20f);
-            const char* r_text  = oxorany("R");
-            ImVec2      tsize   = ImGui::CalcTextSize(r_text);
-            ImVec2      tpos    = ImVec2(center.x - tsize.x * 0.5f, center.y - tsize.y * 0.5f);
-            dl->AddText(ImGui::GetFont(), ImGui::GetFontSize() * 1.20f,
-                        tpos, ImGui::ColorConvertFloat4ToU32(themeColor), r_text);
-            ImGui::SetWindowFontScale(1.0f);
+            int ga = (int)(140 + 80 * fabsf(sinf(t * 2.0f)));
+            bdl->AddCircle(ImVec2(cx, cy), 42.0f, IM_COL32(200, 20, 20, ga), 32, 3.0f);
+            bdl->AddCircleFilled(ImVec2(cx, cy), 38.0f, IM_COL32(12, 4, 4, 245));
 
-            // Tap detection
-            static ImVec2 clickPos;
-            if (ImGui::IsWindowHovered()) {
-                if (ImGui::IsMouseClicked(0))   clickPos = ImGui::GetMousePos();
-                if (ImGui::IsMouseReleased(0)) {
-                    ImVec2 rel = ImGui::GetMousePos();
-                    if (fabsf(clickPos.x - rel.x) < 8.0f && fabsf(clickPos.y - rel.y) < 8.0f)
-                        showMenu = true;
-                }
+            DrawShieldLogo(bdl, ImVec2(cx, cy - 2), 52.0f, t);
+
+            ImGui::SetCursorPos(ImVec2(0, 0));
+            ImGui::InvisibleButton("##btn", ImVec2(80, 88));
+            if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+                ImVec2 delta = ImGui::GetIO().MouseDelta;
+                ImGui::SetWindowPos(ImVec2(ImGui::GetWindowPos().x + delta.x, ImGui::GetWindowPos().y + delta.y));
+            }
+            if (ImGui::IsItemDeactivated() && !ImGui::IsMouseDragging(ImGuiMouseButton_Left, 4.0f)) {
+                showMenu = true;
             }
         }
         ImGui::End();
+        ImGui::PopStyleVar(2);
         ImGui::PopStyleColor(2);
-        ImGui::PopStyleVar(3);
 
         ImGui::PopStyleVar(8);
         ImGui::PopStyleColor(22);
@@ -2291,77 +2325,90 @@ bool CheckVersion_RBS(const std::string& current_version) {
 
         float scrW = io.DisplaySize.x;
         float scrH = io.DisplaySize.y;
-        float winW = fminf(scrW * 0.92f, 420.0f);
-        float winH = fminf(scrH * 0.92f, 430.0f);
 
-        ImGui::SetNextWindowSizeConstraints(ImVec2(280, 320), ImVec2(scrW * 0.98f, scrH * 0.98f));
-        ImGui::SetNextWindowSize(ImVec2(winW, winH), ImGuiCond_Always);
+        ImGui::SetNextWindowSizeConstraints(ImVec2(400, 420), ImVec2(scrW * 0.95f, scrH * 0.90f));
+        ImGui::SetNextWindowSize(ImVec2(520, 460), ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowPos(ImVec2(scrW * 0.5f, scrH * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.0f, 12.0f));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,    ImVec2(20.0f, 20.0f));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding,   8.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 2.0f);
+        ImGui::PushStyleColor(ImGuiCol_WindowBg,      ImVec4(0.06f, 0.04f, 0.04f, 0.98f));
+        ImGui::PushStyleColor(ImGuiCol_Border,        ImVec4(0.70f, 0.06f, 0.06f, 0.90f));
+        ImGui::PushStyleColor(ImGuiCol_FrameBg,       ImVec4(0.12f, 0.07f, 0.07f, 0.90f));
+        ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.18f, 0.08f, 0.08f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.45f, 0.05f, 0.05f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_CheckMark,     ImVec4(0.95f, 0.20f, 0.20f, 1.0f));
 
         if (ImGui::Begin("##RBSKeySystem", nullptr,
             ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar |
             ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove)) {
 
             float ww = ImGui::GetWindowSize().x;
-            float scale = fmaxf(ww / 600.0f, 0.50f);
-
-            ImGui::SetWindowFontScale(scale * 0.95f);
+            ImVec4 loginAccent = ImVec4(0.95f, 0.20f, 0.20f, 1.0f);
 
             // Title
+            ImGui::SetWindowFontScale(1.1f);
             const char* title = xorstr_("RYUKOBS - LOGIN");
             ImGui::SetCursorPosX((ww - ImGui::CalcTextSize(title).x) * 0.5f);
-            ImGui::TextColored(themeColor, "%s", title);
+            ImGui::TextColored(loginAccent, "%s", title);
+            ImGui::SetWindowFontScale(1.0f);
+            ImGui::Separator(); ImGui::Spacing();
 
-            ImGui::SetWindowFontScale(scale * 0.78f);
-            ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
-
-            ImGui::TextDisabled(xorstr_("DEVICE INFO"));
-            ImGui::Text(xorstr_("Model : %s"), getDeviceName().c_str());
-            ImGui::Text(xorstr_("HWID  : %.20s..."), cached_uuid.c_str());
+            // Device info
+            ImGui::TextDisabled(xorstr_("DEVICE:"));
+            ImGui::SameLine();
+            ImGui::Text("%s", getDeviceName().c_str());
+            ImGui::TextDisabled(xorstr_("HWID:"));
+            ImGui::SameLine();
+            ImGui::Text("%s", cached_uuid.c_str());
             ImGui::Spacing();
             ImGui::TextDisabled(xorstr_("Telegram: t.me/ryukobs"));
             ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
 
-            ImGui::TextColored(themeColor, xorstr_("STEP 1 - GET YOUR FREE KEY"));
-            ImGui::Spacing();
-            ImGui::PushStyleColor(ImGuiCol_Button,        themeDim);
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.72f, 0.32f, 0.95f, 0.48f));
-            if (ImGui::Button(xorstr_("COPY GET-KEY LINK"), ImVec2(-1, 30.0f * scale))) {
+            ImGui::TextColored(loginAccent, xorstr_("STEP 1: GET YOUR FREE KEY"));
+            float halfW = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x) * 0.5f;
+            ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.70f, 0.06f, 0.06f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.90f, 0.10f, 0.10f, 1.0f));
+            if (ImGui::Button(xorstr_("OPEN IN BROWSER"), ImVec2(halfW, 45))) {
+                OpenBrowserWithUrl(link);
+                snprintf(auth_status, sizeof(auth_status), xorstr_("Opening browser..."));
+            }
+            ImGui::SameLine();
+            if (ImGui::Button(xorstr_("COPY LINK"), ImVec2(halfW, 45))) {
                 CopyLinkToClipboard(link);
                 snprintf(auth_status, sizeof(auth_status), xorstr_("Link copied! Paste in browser."));
             }
             ImGui::PopStyleColor(2);
             ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
 
-            ImGui::TextColored(themeColor, xorstr_("STEP 2 - ENTER YOUR KEY"));
+            ImGui::TextColored(loginAccent, xorstr_("STEP 2: LOGIN"));
             ImGui::Spacing();
             ImGui::PushItemWidth(-1);
-            if (ImGui::InputTextWithHint("##rbs_key", xorstr_("Paste your key here..."),
+            if (ImGui::InputTextWithHint("##rbs_key", xorstr_("click PASTE..."),
                 user_input_key, IM_ARRAYSIZE(user_input_key)))
                 ShowSoftKeyboardInput();
             ImGui::PopItemWidth();
             ImGui::Spacing();
-            if (ImGui::Button(xorstr_("PASTE FROM CLIPBOARD"), ImVec2(-1, 26.0f * scale))) {
+            if (ImGui::Button(xorstr_("PASTE KEY FROM CLIPBOARD"), ImVec2(-1, 40))) {
                 std::string clip = getClipboard();
                 if (!clip.empty()) {
                     strncpy(user_input_key, clip.c_str(), IM_ARRAYSIZE(user_input_key) - 1);
                     snprintf(auth_status, sizeof(auth_status), xorstr_("Key pasted!"));
                 } else {
-                    snprintf(auth_status, sizeof(auth_status), xorstr_("Clipboard is empty."));
+                    snprintf(auth_status, sizeof(auth_status), xorstr_("Clipboard is empty!"));
                 }
             }
-            ImGui::Spacing(); ImGui::Spacing();
+            ImGui::Spacing();
 
-            ImGui::PushStyleColor(ImGuiCol_Button,        themeColor);
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.85f, 0.48f, 1.0f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_Text,          ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.70f, 0.06f, 0.06f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.90f, 0.10f, 0.10f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_Text,          ImVec4(1.0f,  1.0f,  1.0f,  1.0f));
             if (is_authenticating.load()) {
                 ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
-                ImGui::Button(xorstr_("VERIFYING..."), ImVec2(-1, 36.0f * scale));
+                ImGui::Button(xorstr_("VERIFYING..."), ImVec2(-1, 48));
                 ImGui::PopStyleVar();
             } else {
-                if (ImGui::Button(xorstr_("LOGIN"), ImVec2(-1, 36.0f * scale))) {
+                if (ImGui::Button(xorstr_("LOGIN"), ImVec2(-1, 48))) {
                     is_authenticating = true;
                     snprintf(auth_status, sizeof(auth_status), xorstr_("Checking App Version..."));
                     std::string temp_key(user_input_key);
@@ -2388,10 +2435,10 @@ bool CheckVersion_RBS(const std::string& current_version) {
             float sw = ImGui::CalcTextSize(auth_status).x;
             ImGui::SetCursorPosX((ww - sw) * 0.5f);
             ImGui::TextColored(ImVec4(1.0f, 0.28f, 0.28f, 1.0f), "%s", auth_status);
-            ImGui::SetWindowFontScale(1.0f);
         }
         ImGui::End();
-        ImGui::PopStyleVar();
+        ImGui::PopStyleColor(6);
+        ImGui::PopStyleVar(3);
         ImGui::PopStyleVar(8); ImGui::PopStyleColor(22);
         return;
     }
@@ -2413,21 +2460,57 @@ bool CheckVersion_RBS(const std::string& current_version) {
 
             float ww    = ImGui::GetWindowSize().x;
             float scale = fmaxf(ww / 600.0f, 0.48f);
+            float t_now = ImGui::GetTime();
+            ImVec2 winPos = ImGui::GetWindowPos();
+            ImDrawList* dl = ImGui::GetWindowDrawList();
 
-            // ── Animated title / minimize button ────────────────────────
-            ImGui::SetWindowFontScale(scale * 0.80f);
-            ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0, 0, 0, 0));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1, 1, 1, 0.05f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(1, 1, 1, 0.10f));
-            float t = ImGui::GetTime();
-            int tr = (t < 2.0f) ? (int)(sinf(t * 3.0f)        * 127 + 128) : 183;
-            int tg = (t < 2.0f) ? (int)(sinf(t * 3.0f + 3.0f) * 127 + 128) :  82;
-            int tb = (t < 2.0f) ? (int)(sinf(t * 3.0f + 4.0f) * 127 + 128) : 242;
-            ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(tr, tg, tb, 255));
-            if (ImGui::Button(xorstr_(" RyukoBS Freemium  |  tap to minimize "), ImVec2(-1, 0)))
-                showMenu = false;
+            // ── HEADER BACKGROUND ────────────────────────────────────────
+            float HDR_H  = 56.0f;
+            float logoSz = 44.0f;
+            ImVec2 hdrMin = ImVec2(winPos.x + 1, winPos.y + 1);
+            ImVec2 hdrMax = ImVec2(winPos.x + ww - 1, winPos.y + HDR_H);
+            dl->AddRectFilled(hdrMin, hdrMax, IM_COL32(12, 4, 4, 255), 8.0f, ImDrawFlags_RoundCornersTop);
+            dl->AddLine(ImVec2(hdrMin.x, hdrMax.y), ImVec2(hdrMax.x, hdrMax.y), IM_COL32(180, 120, 0, 180), 1.5f);
+            dl->AddRect(hdrMin, hdrMax, IM_COL32(150, 12, 12, 160), 8.0f, ImDrawFlags_RoundCornersTop, 1.2f);
+
+            // ── SHIELD LOGO left ─────────────────────────────────────────
+            DrawShieldLogo(dl, ImVec2(winPos.x + 8 + logoSz * 0.5f, winPos.y + HDR_H * 0.5f), logoSz, t_now);
+
+            // ── DRAG HANDLE ──────────────────────────────────────────────
+            ImGui::SetWindowFontScale(0.90f);
+            {
+                float dragX  = 8 + logoSz + 6;
+                float closeW = 68.0f;
+                float dragW  = ww - dragX - closeW - ImGui::GetStyle().ItemSpacing.x;
+                ImGui::SetCursorPos(ImVec2(dragX, 0));
+                ImGui::InvisibleButton("##hdr_drag", ImVec2(dragW, HDR_H));
+                if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+                    ImVec2 delta = ImGui::GetIO().MouseDelta;
+                    ImGui::SetWindowPos(ImVec2(winPos.x + delta.x, winPos.y + delta.y));
+                }
+                ImGui::SetWindowFontScale(0.90f);
+                float fh = ImGui::GetFontSize();
+                int pr = (int)(220 + 35 * sinf(t_now * 2.5f));
+                int pg = (int)(150 * fabsf(sinf(t_now * 1.3f)));
+                dl->AddText(ImVec2(winPos.x + dragX, winPos.y + (HDR_H - fh) * 0.5f),
+                            IM_COL32(pr, pg, 10, 255), xorstr_("RYUKOBS  :::  drag to move"));
+            }
+
+            // ── CLOSE BUTTON ─────────────────────────────────────────────
+            ImGui::SetWindowFontScale(0.70f);
+            ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.60f, 0.04f, 0.04f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.90f, 0.10f, 0.10f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.35f, 0.02f, 0.02f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_Text,          ImVec4(1.0f,  1.0f,  1.0f,  1.0f));
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 20.0f);
+            float btnH = HDR_H - 16.0f;
+            ImGui::SetCursorPos(ImVec2(ww - 68, (HDR_H - btnH) * 0.5f));
+            if (ImGui::Button(xorstr_(" X "), ImVec2(56, btnH))) showMenu = false;
+            ImGui::PopStyleVar();
             ImGui::PopStyleColor(4);
 
+            ImGui::SetWindowFontScale(1.0f);
+            ImGui::SetCursorPosY(HDR_H + 4);
             ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
 
             // ── Tab navigation ───────────────────────────────────────────
@@ -2632,6 +2715,27 @@ bool CheckVersion_RBS(const std::string& current_version) {
 
             // ── TAB 5: INFO ──────────────────────────────────────────────
             else if (ActiveTab == 5) {
+                // ── VIP STATUS ───────────────────────────────────────────
+                ImGui::TextColored(ImVec4(1.0f, 0.80f, 0.10f, 1.0f), xorstr_("VIP STATUS"));
+                ImGui::Separator(); ImGui::Spacing();
+                if (strlen(bss_vip_username_str) > 0) {
+                    ImGui::TextDisabled(xorstr_("USER:"));
+                    ImGui::SameLine();
+                    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.1f, 1.0f), "%s", bss_vip_username_str);
+                }
+                ImGui::TextDisabled(xorstr_("DAYS REMAINING:"));
+                ImGui::SameLine();
+                if (bss_vip_days_received) {
+                    float dr = (float)bss_vip_days_remaining;
+                    ImVec4 daysColor = dr > 7 ? ImVec4(0.3f,1.0f,0.3f,1.0f)
+                                     : dr > 2 ? ImVec4(1.0f,0.7f,0.1f,1.0f)
+                                     :          ImVec4(1.0f,0.2f,0.2f,1.0f);
+                    ImGui::TextColored(daysColor, "%d DAYS", bss_vip_days_remaining);
+                } else {
+                    ImGui::TextDisabled(xorstr_("FREE KEY"));
+                }
+                ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
+
                 ImGui::TextColored(themeColor, xorstr_("MENU INFORMATION"));
                 ImGui::Separator(); ImGui::Spacing();
                 ImGui::Text(xorstr_("Name    : RyukoBS Freemium"));
