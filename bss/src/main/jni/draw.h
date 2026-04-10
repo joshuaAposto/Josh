@@ -2104,8 +2104,8 @@ bool VerifyKeyWithServer_RBS(const std::string& key, const std::string& uuid) {
                 std::string sm = data.value(xorstr_("message"), "");
                 std::string sts = data[xorstr_("ts")].get<std::string>();
                 std::string ssig = data[xorstr_("sig")].get<std::string>();
-                std::string SALT = xorstr_("sksoosirkdkeoeoKKAKKAKSKDjdjdjrjjrjrjrjrjr0292838383kdkdk");
-                std::string raw = SALT + (sv ? "true" : "false") + sts + uuid;
+                std::string SALT = xorstr_("SJSIDIIDJEJRKRKRKKRDIIDIDKDKDKDKFKTJTJJFJFJJFFKFKKFKFKFKFIDIR");
+                std::string raw = SALT + (sv ? xorstr_("true") : xorstr_("false")) + sts + uuid;
                 std::string csig = GetMD5Hash(raw);
                 if (csig == ssig) {
                     long long ts_val = std::stoll(sts);
