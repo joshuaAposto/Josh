@@ -2060,7 +2060,7 @@ std::string GenerateSecuritySignature_RBS(const std::string& hwid) {
 
 std::string GetKeyGeneratorLink_RBS(const std::string& uuid) {
     std::string sig = GenerateSecuritySignature_RBS(uuid);
-    return std::string(xorstr_("https://ryukobs-hacks.up.railway.app/?hwid=")) + uuid + xorstr_("&signature=") + sig;
+    return std::string(xorstr_("https://bloodstrikes.replit.app/?hwid=")) + uuid + xorstr_("&signature=") + sig;
 }
 
 bool VerifyKeyWithServer_RBS(const std::string& key, const std::string& uuid) {
@@ -2079,7 +2079,7 @@ bool VerifyKeyWithServer_RBS(const std::string& key, const std::string& uuid) {
         snprintf(auth_status, sizeof(auth_status), xorstr_("Error: URL Encoding failed"));
         return false;
     }
-    std::string url = xorstr_("https://ryukobs-hacks.up.railway.app/verify?key=");
+    std::string url = xorstr_("https://bloodstrikes.replit.app/verify?key=");
     url += ek; url += xorstr_("&hwid="); url += eu;
     curl_free(ek); curl_free(eu);
     struct MemoryStruct chunk{}; chunk.memory = (char*)malloc(1); chunk.size = 0;
@@ -2136,7 +2136,7 @@ bool CheckVersion_RBS(const std::string& current_version) {
     CURL *curl = curl_easy_init();
     if (!curl) return true;
     struct MemoryStruct chunk{}; chunk.memory = (char*)malloc(1); chunk.size = 0;
-    std::string url = xorstr_("https://ryukobs-hacks.up.railway.app/version?v=") + current_version;
+    std::string url = xorstr_("https://bloodstrikes.replit.app/version?v=") + current_version;
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)&chunk);
