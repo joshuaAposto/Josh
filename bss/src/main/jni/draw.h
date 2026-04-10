@@ -2348,7 +2348,7 @@ bool CheckVersion_RBS(const std::string& current_version) {
 
             // Title
             ImGui::SetWindowFontScale(1.1f);
-            const char* title = xorstr_("RYUKOBS - LOGIN");
+            const char* title = xorstr_("SACREDBS VIP - LOGIN");
             ImGui::SetCursorPosX((ww - ImGui::CalcTextSize(title).x) * 0.5f);
             ImGui::TextColored(loginAccent, "%s", title);
             ImGui::SetWindowFontScale(1.0f);
@@ -2362,7 +2362,7 @@ bool CheckVersion_RBS(const std::string& current_version) {
             ImGui::SameLine();
             ImGui::Text("%s", cached_uuid.c_str());
             ImGui::Spacing();
-            ImGui::TextDisabled(xorstr_("Telegram: t.me/ryukobs"));
+            ImGui::TextDisabled(xorstr_("Telegram: t.me/SACREDBS_VIP"));
             ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
 
             ImGui::TextColored(loginAccent, xorstr_("STEP 1: GET YOUR FREE KEY"));
@@ -2493,7 +2493,7 @@ bool CheckVersion_RBS(const std::string& current_version) {
                 int pr = (int)(220 + 35 * sinf(t_now * 2.5f));
                 int pg = (int)(150 * fabsf(sinf(t_now * 1.3f)));
                 dl->AddText(ImVec2(winPos.x + dragX, winPos.y + (HDR_H - fh) * 0.5f),
-                            IM_COL32(pr, pg, 10, 255), xorstr_("RYUKOBS  :::  drag to move"));
+                            IM_COL32(pr, pg, 10, 255), xorstr_("SACREDBS VIP  :::  drag to move"));
             }
 
             // ── CLOSE BUTTON ─────────────────────────────────────────────
@@ -2738,7 +2738,7 @@ bool CheckVersion_RBS(const std::string& current_version) {
 
                 ImGui::TextColored(themeColor, xorstr_("MENU INFORMATION"));
                 ImGui::Separator(); ImGui::Spacing();
-                ImGui::Text(xorstr_("Name    : RyukoBS Freemium"));
+                ImGui::Text(xorstr_("Name    : SACREDBS VIP"));
                 ImGui::Text(xorstr_("Version : 1.3"));
                 ImGui::Text(xorstr_("Build   : 2026"));
                 ImGui::Text(xorstr_("FPS     : %.1f"), io.Framerate);
@@ -2755,7 +2755,7 @@ bool CheckVersion_RBS(const std::string& current_version) {
                 ImGui::TextColored(themeColor, xorstr_("CREDITS"));
                 ImGui::Separator();
                 ImGui::Text(xorstr_("Developer: RYUKO"));
-                ImGui::BulletText(xorstr_("Telegram : t.me/ryukobs"));
+                ImGui::BulletText(xorstr_("Telegram : t.me/SACREDBS_VIP"));
                 ImGui::BulletText(xorstr_("Game Version : BloodStrike 1.003.650015"));
                 ImGui::Spacing(); ImGui::Separator();
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.5f, 0.0f, 1.0f));
