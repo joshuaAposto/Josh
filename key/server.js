@@ -436,6 +436,46 @@ app.post('/admin/renew', async (req, res) => {
     }
 });
 
+// ==========================================
+// Version Check Route
+// ==========================================
+const LATEST_VERSION = '1.3';
+
+app.get('/version', (req, res) => {
+    const clientVersion = req.query.v || '';
+    const isValid = (clientVersion === LATEST_VERSION);
+    const message = isValid
+        ? 'You are on the latest version'
+        : 'Outdated version, please update RyukBS app : https://t.me/ryukobs';
+
+    const timestamp = Date.now().toString();
+
+    // Hash format: SECRET_SALT + isValid + timestamp + clientVersion
+    const dataToHash = SERVER_SECRET + isValid.toString() + timestamp + clientVersion;
+    const sig = crypto.createHash('md5').update(dataToHash).digest('hex');
+
+    res.json({ valid: isValid, message, ts: timestamp, sig });
+});
+
+// ==========================================
+// Automatic Cleanup System
+// ==========================================
+const runCleanup = async () => {
+    const now = Date.now();
+    try {
+        const expiredKeys     = await sql`DELETE FROM keys     WHERE expires_at <= ${now}`;
+        const expiredSessions = await sql`DELETE FROM sessions WHERE created_at  <  ${now - (30 * 60 * 1000)}`;
+        console.log(`[CLEANUP] Ran at: ${new Date(now).toLocaleString()}`);
+        console.log(`[CLEANUP] Keys removed: ${expiredKeys.count}`);
+        console.log(`[CLEANUP] Sessions removed: ${expiredSessions.count}`);
+    } catch (error) {
+        console.error('[CLEANUP ERROR]:', error);
+    }
+};
+
+setInterval(runCleanup, 2 * 60 * 60 * 1000);
+runCleanup();
+
 // Static files (after route handlers)
 app.use(express.static(path.join(__dirname, 'public')));
 
