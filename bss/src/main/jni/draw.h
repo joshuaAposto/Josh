@@ -2362,7 +2362,7 @@ bool CheckVersion_RBS(const std::string& current_version) {
             ImGui::SameLine();
             ImGui::Text("%s", cached_uuid.c_str());
             ImGui::Spacing();
-            ImGui::TextDisabled(xorstr_("Telegram: t.me/SACREDBS_VIP"));
+            ImGui::TextDisabled(xorstr_("Telegram: t.me/sacredbs"));
             ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
 
             ImGui::TextColored(loginAccent, xorstr_("STEP 1: GET YOUR FREE KEY"));
@@ -2754,8 +2754,9 @@ bool CheckVersion_RBS(const std::string& current_version) {
                 ImGui::Spacing(); ImGui::Separator();
                 ImGui::TextColored(themeColor, xorstr_("CREDITS"));
                 ImGui::Separator();
-                ImGui::Text(xorstr_("Developer: RYUKO"));
-                ImGui::BulletText(xorstr_("Telegram : t.me/SACREDBS_VIP"));
+                ImGui::Text(xorstr_("Developer: SACREDBS VIP"));
+                ImGui::BulletText(xorstr_("Channel  : t.me/sacredbs"));
+                ImGui::BulletText(xorstr_("Account  : t.me/SACREDBS_VIP"));
                 ImGui::BulletText(xorstr_("Game Version : BloodStrike 1.003.650015"));
                 ImGui::Spacing(); ImGui::Separator();
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.5f, 0.0f, 1.0f));
