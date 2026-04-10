@@ -1176,9 +1176,10 @@ void DrawMenu(ImGuiIO &io) {
         }
         std::string link = GetKeyGeneratorLink(cached_uuid);
 
-        ImGui::SetNextWindowSizeConstraints(ImVec2(400, 420), ImVec2(io.DisplaySize.x * 0.95f, io.DisplaySize.y * 0.9f));
-        ImGui::SetNextWindowSize(ImVec2(520, 460), ImGuiCond_FirstUseEver);
-        
+        ImGui::SetNextWindowSizeConstraints(ImVec2(380, 460), ImVec2(io.DisplaySize.x * 0.95f, io.DisplaySize.y * 0.95f));
+        ImGui::SetNextWindowSize(ImVec2(fminf(520.0f, io.DisplaySize.x * 0.88f), fminf(560.0f, io.DisplaySize.y * 0.80f)), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
+
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(20.0f, 20.0f));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 8.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 2.0f);
@@ -1188,7 +1189,7 @@ void DrawMenu(ImGuiIO &io) {
         ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.18f, 0.08f, 0.08f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.45f, 0.05f, 0.05f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_CheckMark,     ImVec4(0.95f, 0.20f, 0.20f, 1.0f));
-        if (ImGui::Begin("##KeySystem", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar)) {
+        if (ImGui::Begin("##KeySystem", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysVerticalScrollbar)) {
             
             float windowWidth = ImGui::GetWindowSize().x;
             

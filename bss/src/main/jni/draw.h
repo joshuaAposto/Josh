@@ -2330,9 +2330,9 @@ bool CheckVersion_RBS(const std::string& current_version) {
         float scrW = io.DisplaySize.x;
         float scrH = io.DisplaySize.y;
 
-        ImGui::SetNextWindowSizeConstraints(ImVec2(400, 420), ImVec2(scrW * 0.95f, scrH * 0.90f));
-        ImGui::SetNextWindowSize(ImVec2(520, 460), ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowPos(ImVec2(scrW * 0.5f, scrH * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+        ImGui::SetNextWindowSizeConstraints(ImVec2(380, 460), ImVec2(scrW * 0.95f, scrH * 0.95f));
+        ImGui::SetNextWindowSize(ImVec2(fminf(520.0f, scrW * 0.88f), fminf(560.0f, scrH * 0.80f)), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowPos(ImVec2(scrW * 0.5f, scrH * 0.5f), ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,    ImVec2(20.0f, 20.0f));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding,   8.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 2.0f);
@@ -2344,7 +2344,8 @@ bool CheckVersion_RBS(const std::string& current_version) {
         ImGui::PushStyleColor(ImGuiCol_CheckMark,     ImVec4(0.95f, 0.20f, 0.20f, 1.0f));
 
         if (ImGui::Begin("##RBSKeySystem", nullptr,
-            ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar)) {
+            ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar |
+            ImGuiWindowFlags_AlwaysVerticalScrollbar)) {
 
             float ww = ImGui::GetWindowSize().x;
             ImVec4 loginAccent = ImVec4(0.95f, 0.20f, 0.20f, 1.0f);
