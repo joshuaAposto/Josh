@@ -1,0 +1,26 @@
+include_directories(
+    ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}
+)
+
+
+
+add_library(YourMod SHARED
+
+    main.cpp
+    DomainScanner.cpp
+    NetworkHooks.cpp
+    FireWall.cpp
+    draw.cpp
+    AntiDetection.cpp
+    AntiTelemetry.cpp 
+    
+    # ... other existing files
+)
+
+# Link required libraries
+set_target_properties(YourMod PROPERTIES OUTPUT_NAME "Encrypt")
+target_link_libraries(YourMod
+    log
+    # ... other libraries
+)

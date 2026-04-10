@@ -1,0 +1,295 @@
+// anti_detect.h
+// Anti-Detection untuk Native Mod
+// Tambahkan file ini ke project And
+
+#ifndef ANTI_DETECT_H
+#define ANTI_DETECT_H
+
+#include <jni.h>
+#include <string>
+#include <vector>
+#include <dlfcn.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <pthread.h>
+#include <sys/system_properties.h>
+#include <android/log.h>
+
+
+#include <dlfcn.h>
+#include <unistd.h>
+#include <sys/mman.h>
+#include <sys/system_properties.h>
+
+#define LOG_TAG "AntiDetect"
+#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
+
+
+// Define logging macros
+#define LOG_TAG "AntiDetect"
+#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+#define LOGW(...) __android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+
+// Define PROP_VALUE_MAX jika belum ada
+#ifndef PROP_VALUE_MAX
+#define PROP_VALUE_MAX 92
+#endif
+
+
+class AntiDetection {
+public:
+    // Static methods
+    static void Initialize(JNIEnv* env);
+    static bool PerformSecurityCheck();
+    static void HideLibrary(const char* libName);
+    static void ProtectMemoryRegion(uintptr_t address, size_t size);
+    
+private:
+    static bool isInitialized;
+};
+
+// Helper functions
+namespace AntiDetectionHelpers {
+    bool isRooted();
+    bool isEmulator();
+    bool isDebuggerAttached();
+    void antiPtrace();
+    void clearSensitiveData(void* ptr, size_t size);
+}
+// ==================== ANTI ROOT DETECTION ====================
+
+bool IsRunningOnEmulator() {
+    // Check build properties
+    char brand[PROP_VALUE_MAX] = {0};
+    char device[PROP_VALUE_MAX] = {0};
+    char model[PROP_VALUE_MAX] = {0};
+    
+    __system_property_get("ro.product.brand", brand);
+    __system_property_get("ro.product.device", device);
+    __system_property_get("ro.product.model", model);
+    
+    std::string brandStr(brand);
+    std::string deviceStr(device);
+    std::string modelStr(model);
+    
+    // Return false untuk bypass (anggap bukan emulator)
+    return false;
+}
+
+// Hook /proc/self/maps untuk sembunyikan library mod
+void HideMapsEntry() {
+    // Ini akan menyembunyikan library Anda dari /proc/self/maps
+    // Implementasi lengkap memerlukan PLT hook yang kompleks
+    // Untuk sekarang, gunakan obfuscation nama library
+}
+
+// ==================== MEMORY PROTECTION ====================
+
+void ProtectMemoryRegion(uintptr_t address, size_t size) {
+    long pageSize = sysconf(_SC_PAGESIZE);
+    uintptr_t alignedAddr = (address & ~(pageSize - 1));
+    
+    // Set memory ke read-only setelah patch untuk hindari deteksi
+    mprotect((void*)alignedAddr, pageSize, PROT_READ | PROT_EXEC);
+}
+
+// ==================== STRING OBFUSCATION ====================
+
+// Sudah ada xorstr.hpp, tapi tambahkan runtime encryption
+std::string DecryptString(const char* encrypted, size_t len, uint8_t key) {
+    std::string result;
+    for (size_t i = 0; i < len; i++) {
+        result += encrypted[i] ^ key ^ (i & 0xFF);
+    }
+    return result;
+}
+
+// ==================== ANTI DEBUGGING ====================
+
+bool IsDebuggerAttached() {
+    // Check TracerPid in /proc/self/status
+    FILE* fp = fopen("/proc/self/status", "r");
+    if (!fp) return false;
+    
+    char line[256];
+    bool debugged = false;
+    
+    while (fgets(line, sizeof(line), fp)) {
+        if (strncmp(line, "TracerPid:", 10) == 0) {
+            int pid = atoi(line + 10);
+            debugged = (pid != 0);
+            break;
+        }
+    }
+    fclose(fp);
+    
+    // Return false untuk bypass
+    return false;
+}
+
+// Anti-debugging dengan ptrace
+void AntiPtrace() {
+    // Panggil ptrace pada diri sendiri agar tidak bisa di-attach
+    // ptrace(PTRACE_TRACEME, 0, 0, 0);
+    // Dinonaktifkan karena bisa mengganggu normal operation
+}
+
+// ==================== INTEGRITY CHECK BYPASS ====================
+
+// Hook untuk bypass CRC/signature check
+typedef int (*VerifySignature_t)(const char* path);
+VerifySignature_t original_verify = nullptr;
+
+int hook_VerifySignature(const char* path) {
+    // Selalu return success
+    return 0; // 0 = success
+}
+
+// ==================== JNI HOOK HELPERS ====================
+
+// Hook Java methods via JNI untuk bypass deteksi
+void HookJavaSecurityChecks(JNIEnv* env) {
+    // Contoh: Hook PackageManager.getPackageInfo
+    jclass pmClass = env->FindClass("android/content/pm/PackageManager");
+    if (!pmClass) return;
+    
+    // Ini contoh sederhana, implementasi lengkap perlu Cydia Substrate/YAHFA
+    // Untuk production, gunakan library seperti:
+    // - And64InlineHook
+    // - Dobby
+    // - Whale
+}
+
+// ==================== ANTI FRIDA ====================
+
+bool DetectFrida() {
+    // Check Frida ports
+    const char* frida_ports[] = {"27042", "27043"};
+    
+    // Return false untuk bypass
+    return false;
+}
+
+// Thread untuk monitor Frida
+void* FridaDetectionThread(void* arg) {
+    while (true) {
+        if (DetectFrida()) {
+            // Deteksi Frida - dalam bypass mode, tidak lakukan apa-apa
+        }
+        sleep(5);
+    }
+    return nullptr;
+}
+
+void StartFridaDetection() {
+    pthread_t thread;
+    pthread_create(&thread, nullptr, FridaDetectionThread, nullptr);
+    pthread_detach(thread);
+}
+
+// ==================== LIBRARY HIDING ====================
+
+void HideLibrary(const char* libName) {
+    // Rename .so file setelah dimuat ke memory
+    // Ini akan menyembunyikan dari daftar loaded libraries
+    
+    void* handle = dlopen(libName, RTLD_NOW);
+    if (handle) {
+        // Library sudah loaded, sekarang sembunyikan
+        // Implementasi kompleks: manipulasi /proc/self/maps
+        dlclose(handle);
+    }
+}
+
+// ==================== STACK TRACE CLEANING ====================
+
+void CleanStackTrace() {
+    // Bersihkan stack trace untuk hindari deteksi via Exception
+    // Implementasi memerlukan unwinding stack dan manipulasi frame
+}
+
+// ==================== ANTI SCREENSHOT/RECORDING ====================
+
+void AntiScreenCapture(JNIEnv* env, jobject activity) {
+    jclass activityClass = env->GetObjectClass(activity);
+    jmethodID getWindow = env->GetMethodID(activityClass, "getWindow", 
+                                           "()Landroid/view/Window;");
+    
+    if (getWindow) {
+        jobject window = env->CallObjectMethod(activity, getWindow);
+        if (window) {
+            jclass windowClass = env->GetObjectClass(window);
+            jmethodID setFlags = env->GetMethodID(windowClass, "setFlags", "(II)V");
+            
+            // FLAG_SECURE = 0x00002000
+            if (setFlags) {
+                env->CallVoidMethod(window, setFlags, 0x00002000, 0x00002000);
+            }
+        }
+    }
+}
+
+// ==================== INITIALIZATION ====================
+
+class AntiDetection {
+public:
+    static void Initialize(JNIEnv* env) {
+        // 1. Anti-debugging
+        AntiPtrace();
+        
+        // 2. Start Frida detection (bypass mode)
+        StartFridaDetection();
+        
+        // 3. Hide library entries
+        HideLibrary("library.so"); // Ganti dengan nama library mod Anda
+        
+        // 4. Hook Java security checks
+        HookJavaSecurityChecks(env);
+        
+        // 5. Clean stack traces
+        CleanStackTrace();
+        
+        LOGD("Anti-Detection initialized");
+    }
+    
+    static bool PerformSecurityCheck() {
+        // Perform checks tapi selalu return true (bypass)
+        if (IsDebuggerAttached()) {
+            LOGD("Debugger detected - bypassed");
+        }
+        
+        if (DetectFrida()) {
+            LOGD("Frida detected - bypassed");
+        }
+        
+        if (IsRunningOnEmulator()) {
+            LOGD("Emulator detected - bypassed");
+        }
+        
+        // Always return true to allow mod to run
+        return true;
+    }
+
+
+// ==================== MACRO HELPERS ====================
+
+// Macro untuk auto-protect function
+#define PROTECT_FUNCTION(func) \
+    __attribute__((always_inline)) inline void _protect_##func() { \
+        uintptr_t addr = (uintptr_t)func; \
+        ProtectMemoryRegion(addr, 0x1000); \
+    }
+
+// Macro untuk obfuscate calls
+#define OBFUSCATE_CALL(func, ...) \
+    do { \
+        void* ptr = (void*)func; \
+        ((decltype(&func))ptr)(__VA_ARGS__); \
+    } while(0)
+
+#endif // ANTI_DETECT_H
+
+
