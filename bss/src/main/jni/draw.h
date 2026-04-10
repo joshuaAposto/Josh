@@ -2363,7 +2363,7 @@ bool CheckVersion_RBS(const std::string& current_version) {
             } else {
                 if (ImGui::Button(xorstr_("LOGIN"), ImVec2(-1, 36.0f * scale))) {
                     is_authenticating = true;
-                    snprintf(auth_status, sizeof(auth_status), xorstr_("Checking App Version..."));
+                    snprintf(auth_status, sizeof(auth_status), xorstr_("Connecting to server..."));
                     std::string temp_key(user_input_key);
                     std::string temp_hwid(cached_uuid);
                     std::thread([temp_key, temp_hwid]() {
@@ -2373,10 +2373,8 @@ bool CheckVersion_RBS(const std::string& current_version) {
                         if (stat == JNI_EDETACHED) {
                             if (jvm->AttachCurrentThread(&env, NULL) == JNI_OK) did_attach = true;
                         }
-                        if (CheckVersion_RBS(xorstr_("1.3"))) {
-                            snprintf(auth_status, sizeof(auth_status), xorstr_("Connecting to server..."));
-                            VerifyKeyWithServer_RBS(temp_key, temp_hwid);
-                        }
+                        snprintf(auth_status, sizeof(auth_status), xorstr_("Connecting to server..."));
+                        VerifyKeyWithServer_RBS(temp_key, temp_hwid);
                         is_authenticating = false;
                         if (did_attach) jvm->DetachCurrentThread();
                     }).detach();
