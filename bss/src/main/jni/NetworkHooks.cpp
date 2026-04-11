@@ -91,7 +91,10 @@ bool isTargetDomain(const std::string& domain) {
 
 // ============= HOOK CONNECT =============
 int hook_connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
-    if (addr && addr->sa_family == AF_INET) {
+    if (!addr) return orig_connect(sockfd, addr, addrlen);
+    
+    // Handle IPv4
+    if (addr->sa_family == AF_INET) {
         struct sockaddr_in* addr_in = (struct sockaddr_in*)addr;
         char ip[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &(addr_in->sin_addr), ip, INET_ADDRSTRLEN);
@@ -99,7 +102,7 @@ int hook_connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
         
         // CHECK IP BLACKLIST FIRST!
         if (isBlockedIP(ip)) {
-            NET_LOGI("🚫 IP BLOCKED: %s:%d", ip, port);
+            NET_LOGI("🚫 IP BLOCKED (IPv4): %s:%d", ip, port);
             errno = EHOSTUNREACH;
             return -1;
         }
@@ -121,6 +124,32 @@ int hook_connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
             if (globalScanner && globalScanner->isEnabled()) {
                 if (isTargetDomain(hostname)) {
                     NET_LOGI("[PRIORITY] Target domain: %s", hostname.c_str());
+                }
+                globalScanner->addDomain(hostname, port);
+            }
+        }
+    }
+    // Bug fix: also handle IPv6 — anti-cheat servers can use IPv6 to bypass IP blocking
+    else if (addr->sa_family == AF_INET6) {
+        struct sockaddr_in6* addr_in6 = (struct sockaddr_in6*)addr;
+        char ip6[INET6_ADDRSTRLEN];
+        inet_ntop(AF_INET6, &(addr_in6->sin6_addr), ip6, INET6_ADDRSTRLEN);
+        int port = ntohs(addr_in6->sin6_port);
+        
+        struct hostent* he = gethostbyaddr(&(addr_in6->sin6_addr),
+                                           sizeof(addr_in6->sin6_addr), AF_INET6);
+        if (he && he->h_name) {
+            std::string hostname(he->h_name);
+            
+            if (globalAntiTelemetry && globalAntiTelemetry->checkAndBlock(hostname)) {
+                NET_LOGI("🚫 Connection BLOCKED (IPv6) to: %s:%d (%s)", hostname.c_str(), port, ip6);
+                errno = EHOSTUNREACH;
+                return -1;
+            }
+            
+            if (globalScanner && globalScanner->isEnabled()) {
+                if (isTargetDomain(hostname)) {
+                    NET_LOGI("[PRIORITY] Target domain (IPv6): %s", hostname.c_str());
                 }
                 globalScanner->addDomain(hostname, port);
             }
@@ -315,7 +344,10 @@ bool isTargetDomain(const std::string& domain) {
 
 // ============= HOOK CONNECT =============
 int hook_connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
-    if (addr && addr->sa_family == AF_INET) {
+    if (!addr) return orig_connect(sockfd, addr, addrlen);
+    
+    // Handle IPv4
+    if (addr->sa_family == AF_INET) {
         struct sockaddr_in* addr_in = (struct sockaddr_in*)addr;
         char ip[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &(addr_in->sin_addr), ip, INET_ADDRSTRLEN);
@@ -323,7 +355,7 @@ int hook_connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
         
         // CHECK IP BLACKLIST FIRST!
         if (isBlockedIP(ip)) {
-            NET_LOGI("🚫 IP BLOCKED: %s:%d", ip, port);
+            NET_LOGI("🚫 IP BLOCKED (IPv4): %s:%d", ip, port);
             errno = EHOSTUNREACH;
             return -1;
         }
@@ -345,6 +377,32 @@ int hook_connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
             if (globalScanner && globalScanner->isEnabled()) {
                 if (isTargetDomain(hostname)) {
                     NET_LOGI("[PRIORITY] Target domain: %s", hostname.c_str());
+                }
+                globalScanner->addDomain(hostname, port);
+            }
+        }
+    }
+    // Bug fix: also handle IPv6 — anti-cheat servers can use IPv6 to bypass IP blocking
+    else if (addr->sa_family == AF_INET6) {
+        struct sockaddr_in6* addr_in6 = (struct sockaddr_in6*)addr;
+        char ip6[INET6_ADDRSTRLEN];
+        inet_ntop(AF_INET6, &(addr_in6->sin6_addr), ip6, INET6_ADDRSTRLEN);
+        int port = ntohs(addr_in6->sin6_port);
+        
+        struct hostent* he = gethostbyaddr(&(addr_in6->sin6_addr),
+                                           sizeof(addr_in6->sin6_addr), AF_INET6);
+        if (he && he->h_name) {
+            std::string hostname(he->h_name);
+            
+            if (globalAntiTelemetry && globalAntiTelemetry->checkAndBlock(hostname)) {
+                NET_LOGI("🚫 Connection BLOCKED (IPv6) to: %s:%d (%s)", hostname.c_str(), port, ip6);
+                errno = EHOSTUNREACH;
+                return -1;
+            }
+            
+            if (globalScanner && globalScanner->isEnabled()) {
+                if (isTargetDomain(hostname)) {
+                    NET_LOGI("[PRIORITY] Target domain (IPv6): %s", hostname.c_str());
                 }
                 globalScanner->addDomain(hostname, port);
             }

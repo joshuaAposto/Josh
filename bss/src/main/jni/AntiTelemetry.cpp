@@ -49,9 +49,22 @@ bool AntiTelemetry::isWhitelisted(const std::string& domain) {
         "voice.netease.com"       // Voice chat
     };
     
+    // Bug fix: use suffix/exact domain matching to prevent whitelist bypass attacks
+    // e.g. "match.netease.com.evil.com" must NOT pass the whitelist
     for (const auto& allowed : whitelist) {
-        if (lowerDomain.find(allowed) != std::string::npos) {
+        if (lowerDomain == allowed) return true;
+        // Valid subdomain: domain ends with ".{allowed}"
+        std::string suffix = "." + allowed;
+        if (lowerDomain.size() > suffix.size() &&
+            lowerDomain.compare(lowerDomain.size() - suffix.size(), suffix.size(), suffix) == 0) {
             return true;
+        }
+        // Or domain ends with "allowed" at a boundary
+        if (lowerDomain.size() >= allowed.size()) {
+            size_t pos = lowerDomain.size() - allowed.size();
+            if (lowerDomain.compare(pos, allowed.size(), allowed) == 0) {
+                if (pos == 0 || lowerDomain[pos - 1] == '.') return true;
+            }
         }
     }
     return false;
@@ -241,6 +254,21 @@ std::string AntiTelemetry::getBlockReason(const std::string& domain) {
     if (lowerDomain.find("config.bloodstrike.io") != std::string::npos) return "BloodStrike Config";
     if (lowerDomain.find("log-api.dragonflygames") != std::string::npos) return "DragonFly Log API";
     if (lowerDomain.find("log-tracker.dragonflygames.cn") != std::string::npos) return "DragonFly Tracker";
+    // Enhancement: additional BloodStrike anti-cheat endpoints
+    if (lowerDomain.find("secure.bloodstrike.net") != std::string::npos) return "BloodStrike Secure";
+    if (lowerDomain.find("detect.bloodstrike.net") != std::string::npos) return "BloodStrike Detect";
+    if (lowerDomain.find("integrity.bloodstrike.net") != std::string::npos) return "BloodStrike Integrity";
+    if (lowerDomain.find("verify.bloodstrike.io") != std::string::npos) return "BloodStrike Verify";
+    if (lowerDomain.find("event.bloodstrike.net") != std::string::npos) return "BloodStrike Event";
+    if (lowerDomain.find("monitor.bloodstrike.net") != std::string::npos) return "BloodStrike Monitor";
+    if (lowerDomain.find("cheatreport.bloodstrike.net") != std::string::npos) return "BloodStrike Cheat Report";
+    if (lowerDomain.find("behavior.bloodstrike.net") != std::string::npos) return "BloodStrike Behavior";
+    if (lowerDomain.find("safeguard.bloodstrike.net") != std::string::npos) return "BloodStrike SafeGuard";
+    if (lowerDomain.find("shield.bloodstrike.net") != std::string::npos) return "BloodStrike Shield";
+    if (lowerDomain.find("data.bloodstrike.net") != std::string::npos) return "BloodStrike Data";
+    if (lowerDomain.find("audit.bloodstrike.net") != std::string::npos) return "BloodStrike Audit";
+    if (lowerDomain.find("scan.bloodstrike.net") != std::string::npos) return "BloodStrike Scan";
+    if (lowerDomain.find("probe.bloodstrike.net") != std::string::npos) return "BloodStrike Probe";
     
     // ========== GOOGLE SERVICES ==========
     if (lowerDomain.find("android.googleapis.com") != std::string::npos) return "Google Android API";
@@ -300,8 +328,10 @@ void AntiTelemetry::logBlock(const std::string& domain, const std::string& reaso
 bool AntiTelemetry::checkAndBlock(const std::string& domain) {
     if (!isEnabled) return false;
     
-    if (shouldBlock(domain)) {
-        std::string reason = getBlockReason(domain);
+    // Bug fix: call getBlockReason only once instead of twice
+    // (the old code called shouldBlock which calls getBlockReason, then called it again)
+    std::string reason = getBlockReason(domain);
+    if (!reason.empty()) {
         logBlock(domain, reason);
         return true;
     }
@@ -423,8 +453,8 @@ std::string AntiTelemetry::getBlockReason(const std::string& domain) {
     }
     
     // ========== EASEBAR SPECIFIC DOMAINS (HIGH PRIORITY) ==========
-	//if (lowerDomain.find("easebar.com") != std::string::npos) return "Easebar Com";
-	if (lowerDomain.find("NeteaSe.com") != std::string::npos) return "Easebar Com";
+        //if (lowerDomain.find("easebar.com") != std::string::npos) return "Easebar Com";
+        if (lowerDomain.find("NeteaSe.com") != std::string::npos) return "Easebar Com";
     if (lowerDomain.find("g83naxx1ena.gph.easebar.com") != std::string::npos) return "Easebar GPH";
     if (lowerDomain.find("applog.matrix.easebar.com") != std::string::npos) return "Easebar AppLog";
     if (lowerDomain.find("drpf-g83naxx1ena.proxima.nie.easebar.com") != std::string::npos) return "Easebar Proxima";
@@ -444,7 +474,7 @@ std::string AntiTelemetry::getBlockReason(const std::string& domain) {
     if (lowerDomain.find("whoami-ipv4.nie.easebar.com") != std::string::npos) return "Easebar WhoAmI";
     if (lowerDomain.find("g0.gsf.easebar.com") != std::string::npos) return "Easebar GSF";
     if (lowerDomain.find("s.q.easebar.com") != std::string::npos) return "Easebar S.Q";
-	
+        
     
     // Generic Easebar patterns (catch-all for any missed domains)
     if (lowerDomain.find("matrix.easebar.com") != std::string::npos) return "Easebar Matrix";
