@@ -750,44 +750,6 @@ def AIMUpdate(*_, **__):
         
 REGISTER_UPDATES.append(AIMUpdate)
 
-# ─── StoryTick watcher ───────────────────────────────────────────────────────
-# ROOT CAUSE: TryAutoEnterGame registers REGISTER_UPDATES into whichever
-# StoryTick._instance is alive at LOGIN time (the lobby instance).
-# When the player enters a match the game creates a NEW StoryTick instance for
-# the match, discarding the lobby's instance and every callback registered on
-# it.  That is why ESP / Aimbot / Magic Bullet do nothing until the WiFi trick
-# forces a re-login that re-fires TryAutoEnterGame against the match instance.
-#
-# FIX: a lightweight background thread polls StoryTick._instance every 500 ms.
-# The instant it detects a new instance (lobby → match, or any later context
-# switch) it re-registers every REGISTER_UPDATES callback into that instance,
-# making entity-based cheats work from the very first match without any trick.
-
-_last_registered_storytick = None
-
-def _storytick_watcher():
-    global _last_registered_storytick
-    while True:
-        try:
-            current = StoryTick._instance
-            if current is not None and current is not _last_registered_storytick:
-                _last_registered_storytick = current
-                ok = 0
-                for update in REGISTER_UPDATES:
-                    try:
-                        current.Add(update, 120)
-                        ok += 1
-                    except Exception as e:
-                        print(f"[WATCHER] add failed for {getattr(update, '__name__', update)}: {e}")
-                print(f"[WATCHER] new StoryTick instance detected — re-registered {ok}/{len(REGISTER_UPDATES)} updates")
-        except Exception as e:
-            print(f"[WATCHER] error: {e}")
-        time.sleep(0.5)
-
-_watcher_thread = threading.Thread(target=_storytick_watcher, daemon=True)
-_watcher_thread.start()
-# ─────────────────────────────────────────────────────────────────────────────
-
 from gclient.framework.entities.space import Space
 from gclient.gameplay.logic_base.entities.combat_avatar import PlayerCombatAvatar
 
