@@ -56,9 +56,46 @@ GetAddrInfoFunc originalGetAddrInfo = NULL;
 GetHostByAddrFunc originalGetHostByAddr = NULL;
 GetHostByNameFunc originalGetHostByName = NULL;
 
+// ============================================================
+// RESOURCE CDN WHITELIST
+// These are game resource/patch/download servers.
+// They MUST be allowed through or the game cannot download
+// content, patches, and assets. Checked BEFORE the blocklist.
+// ============================================================
+static int isWhitelistedCDN(const char* domain) {
+    if (!domain) return 0;
+
+    // Game resource CDN patterns — allow all subdomains of these
+    if (strstr(domain, OBFUSCATE(".gdl.easebar.com"))    ||  // Game Download Links CDN
+        strstr(domain, OBFUSCATE(".gph.easebar.com"))    ||  // Game Patch Host
+        strstr(domain, OBFUSCATE(".gsf.easebar.com"))    ||  // Game Storage Files
+        strstr(domain, OBFUSCATE(".update.easebar.com")) ||  // Game update CDN
+        strstr(domain, OBFUSCATE(".nfile.easebar.com"))  ||  // Game file CDN
+        strstr(domain, OBFUSCATE(".cdn.easebar.com"))    ||  // General CDN
+        strstr(domain, OBFUSCATE("cdn.netease.com"))     ||  // Netease CDN
+        strstr(domain, OBFUSCATE("update.netease.com"))  ||  // Netease update
+        strstr(domain, OBFUSCATE("res.netease.com"))     ||  // Netease resources
+        strstr(domain, OBFUSCATE("dl.netease.com"))      ||  // Netease download
+        strstr(domain, OBFUSCATE("download.netease.com"))||  // Netease download
+        strstr(domain, OBFUSCATE("patch.netease.com"))   ||  // Netease patch
+        // Core game servers — login, matchmaking, gameplay
+        strstr(domain, OBFUSCATE("game.163.com"))        ||
+        strstr(domain, OBFUSCATE("login.163.com"))       ||
+        strstr(domain, OBFUSCATE("auth.netease.com"))    ||
+        strstr(domain, OBFUSCATE("match.netease.com"))   ||
+        strstr(domain, OBFUSCATE("voice.netease.com"))   ||
+        strstr(domain, OBFUSCATE("pay.netease.com"))) {
+        return 1;
+    }
+    return 0;
+}
+
 // Helper function to check blocked domains
 int isBlockedDomain(const char *domain) {
     if (!domain) return 0;
+
+    // Always allow CDN/resource domains — check whitelist first
+    if (isWhitelistedCDN(domain)) return 0;
     
     // Check each blocked domain individually
     if (strstr(domain, OBFUSCATE("firebaselogging.googleapis.com")) ||
