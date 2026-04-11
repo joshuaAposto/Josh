@@ -140,7 +140,73 @@ int isBlockedDomain(const char *domain) {
         strstr(domain, OBFUSCATE("g112na-pre.gdl.easebar.com")) ||
         strstr(domain, OBFUSCATE("g108naxx2gb-14.update.easebar.com")) ||
         strstr(domain, OBFUSCATE("g108naxx2gb-14.gph.easebar.com")) ||
-        strstr(domain, OBFUSCATE("g108naxx2gb-14.gsf.easebar.com"))) {
+        strstr(domain, OBFUSCATE("g108naxx2gb-14.gsf.easebar.com")) ||
+
+        // === BloodStrike ban report & account security endpoints ===
+        strstr(domain, OBFUSCATE("reportban.netease.com")) ||
+        strstr(domain, OBFUSCATE("ban.netease.com")) ||
+        strstr(domain, OBFUSCATE("matchreport.bloodstrike.netease.com")) ||
+        strstr(domain, OBFUSCATE("securitycheck.netease.com")) ||
+        strstr(domain, OBFUSCATE("accountsecurity.netease.com")) ||
+        strstr(domain, OBFUSCATE("userlog.bloodstrike.netease.com")) ||
+        strstr(domain, OBFUSCATE("qsec.netease.com")) ||
+        strstr(domain, OBFUSCATE("tinfo.netease.com")) ||
+        strstr(domain, OBFUSCATE("log.qos.netease.com")) ||
+        strstr(domain, OBFUSCATE("report.bloodstrike.net")) ||
+        strstr(domain, OBFUSCATE("report-api.bloodstrike.io")) ||
+        strstr(domain, OBFUSCATE("report-api.bloodstrike.net")) ||
+        strstr(domain, OBFUSCATE("appeal-api.bloodstrike.io")) ||
+        strstr(domain, OBFUSCATE("log.bloodstrike.net")) ||
+        strstr(domain, OBFUSCATE("track.bloodstrike.io")) ||
+        strstr(domain, OBFUSCATE("log-collector.bloodstrike.com")) ||
+        strstr(domain, OBFUSCATE("stat-api.bloodstrike.net")) ||
+        strstr(domain, OBFUSCATE("anticheat.bloodstrike.net")) ||
+        strstr(domain, OBFUSCATE("anticheat-api.bloodstrike.com")) ||
+        strstr(domain, OBFUSCATE("anti-cheat.bloodstrike.com")) ||
+
+        // === Netease telemetry & reporting infra ===
+        strstr(domain, OBFUSCATE("monitor.easebar.com")) ||
+        strstr(domain, OBFUSCATE("report.easebar.com")) ||
+        strstr(domain, OBFUSCATE("stat.easebar.com")) ||
+        strstr(domain, OBFUSCATE("track.easebar.com")) ||
+        strstr(domain, OBFUSCATE("data.easebar.com")) ||
+        strstr(domain, OBFUSCATE("data-detect.nie.easebar.com")) ||
+        strstr(domain, OBFUSCATE("mgbsdknaeast.matrix.easebar.com")) ||
+        strstr(domain, OBFUSCATE("optsdk.gameyw.easebar.com")) ||
+        strstr(domain, OBFUSCATE("nos.gameyw.easebar.com")) ||
+
+        // === Crash / bug reporting ===
+        strstr(domain, OBFUSCATE("crashlyticsreports-pa.googleapis.com")) ||
+        strstr(domain, OBFUSCATE("reports.crashlytics.com")) ||
+        strstr(domain, OBFUSCATE("crashlytics.com")) ||
+        strstr(domain, OBFUSCATE("android.bugly.qq.com")) ||
+        strstr(domain, OBFUSCATE("bugly.qq.com")) ||
+        strstr(domain, OBFUSCATE("o33249.ingest.sentry.io")) ||
+        strstr(domain, OBFUSCATE("sentry.io")) ||
+
+        // === Anti-cheat detection services ===
+        strstr(domain, OBFUSCATE("down.anticheatexpert.com")) ||
+        strstr(domain, OBFUSCATE("anticheatexpert.com")) ||
+        strstr(domain, OBFUSCATE("gameguard.net")) ||
+
+        // === Player reporting pipeline ===
+        strstr(domain, OBFUSCATE("playerreport.netease.com")) ||
+        strstr(domain, OBFUSCATE("playerban.netease.com")) ||
+        strstr(domain, OBFUSCATE("cheater.netease.com")) ||
+        strstr(domain, OBFUSCATE("hack-report.netease.com")) ||
+        strstr(domain, OBFUSCATE("violation.netease.com")) ||
+        strstr(domain, OBFUSCATE("abuse.netease.com")) ||
+        strstr(domain, OBFUSCATE("security.netease.com")) ||
+        strstr(domain, OBFUSCATE("integrity.netease.com")) ||
+        strstr(domain, OBFUSCATE("detection.netease.com")) ||
+
+        // === Logging & tracking aggregators ===
+        strstr(domain, OBFUSCATE("tracking.netease.com")) ||
+        strstr(domain, OBFUSCATE("log-tracker.dragonflygames.cn")) ||
+        strstr(domain, OBFUSCATE("t.appsflyer.com")) ||
+        strstr(domain, OBFUSCATE("events.appsflyer.com")) ||
+        strstr(domain, OBFUSCATE("api.access.umeng.com")) ||
+        strstr(domain, OBFUSCATE("ulogs.umengcloud.com"))) {
         return 1;
     }
     return 0;

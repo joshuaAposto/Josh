@@ -33,9 +33,10 @@
 #include "NetworkHooks.h"
 #include "AntiDetection.h"
 #include "AntiTelemetry.h"
-//#include "ReportDetector_Android.h"  // TAMBAHKAN INI
+//#include "ReportDetector_Android.h"
 
 #include "FireWall.h"
+#include "AntiBan.h"
 #include "draw.h"
 #include "include/input.h"
 
@@ -164,7 +165,7 @@ DEFINES(void*, iMissMyWife, const char* v0, int v1, void* v2, void* v3, void* v4
     return _iMissMyWife(v0, v1, v2, v3, v4);
 }
 
-	
+        
 // ========== VERIFICATION FUNCTION ==========
 bool verifyProtectionActive() {
     LOGI("========================================");
@@ -240,7 +241,7 @@ for (const auto& test : tests) {
 
 // ========== MAIN HACK THREAD ==========
 void* hack_thread(void*) {
-	LOGI("[INIT] Hack thread started");
+        LOGI("[INIT] Hack thread started");
     LOGI("========================================");
     LOGI("🚀 MOD INITIALIZATION STARTED");
     LOGI("========================================");
@@ -274,8 +275,12 @@ void* hack_thread(void*) {
     // ========== STEP 3: INSTALL NETWORK HOOKS ==========
     LOGI("[3/4] Installing Network Hooks...");
     installNetworkHooks();
-	
-	if (globalAntiTelemetry && globalAntiTelemetry->getEnabled()) {
+
+    // ========== STEP 3b: INSTALL ANTI-BAN PAYLOAD HOOKS ==========
+    LOGI("[3b/4] Installing Anti-Ban Payload Hooks...");
+    installAntiBanHooks();
+        
+        if (globalAntiTelemetry && globalAntiTelemetry->getEnabled()) {
         TELE_LOGI("========================================");
         TELE_LOGI("✓ Protection System Initialized!");
         TELE_LOGI("✓ Network hooks installed");
@@ -305,7 +310,7 @@ void* hack_thread(void*) {
     LOGI("========================================");
     LOGI("🎮 LOADING GAME HOOKS");
     LOGI("========================================");
-	
+        
     hookFunctions();
     
     // GL Function pointers
@@ -362,9 +367,9 @@ void* hack_thread(void*) {
 }
 
 // ========== CONSTRUCTOR (EARLIEST INIT POINT) ==========
-__attribute__((constructor))	
+__attribute__((constructor))    
     void lib_main() {
-	
+        
     // Seed random for anti-pattern
     srand(time(nullptr));
     
