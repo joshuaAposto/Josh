@@ -434,9 +434,28 @@ from gclient.framework.util.story_tick import StoryTick
 
 @HOOK(LoginWindow, 0)
 def TryAutoEnterGame(self):
-    for update in REGISTER_UPDATES:
-        StoryTick._instance.Add(update, 60)
+    try:
+        if StoryTick._instance:
+            for update in REGISTER_UPDATES:
+                StoryTick._instance.Add(update, 60)
+    except: pass
     self.OnEnterGameClick()
+
+def _persistent_update_registration():
+    last_tick_instance = None
+    while True:
+        try:
+            current = StoryTick._instance
+            if current is not None and current is not last_tick_instance:
+                last_tick_instance = current
+                for update in REGISTER_UPDATES:
+                    try:
+                        current.Add(update, 60)
+                    except: pass
+        except: pass
+        time.sleep(1)
+
+threading.Thread(target=_persistent_update_registration, daemon=True).start()
 
 
 import os, struct, json
