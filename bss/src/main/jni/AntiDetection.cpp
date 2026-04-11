@@ -41,15 +41,39 @@ ssize_t fake_read(int fd, void *buf, size_t count) {
         char* buffer = (char*)buf;
         
         std::vector<std::string> filterStrings = {
+            // Inject/hook frameworks
             "libEncrypt.so",
             "libsubstrate",
             "libxposed",
             "libdobby",
             "libhookzz",
             "libshadowhook",
+            "libwhale",
+            "libepic",
+            "libreframwork",
+            // Frida detection strings
             "frida-agent",
+            "frida-gadget",
+            "frida-helper",
             "gum-js-loop",
-            "gmain"
+            "gmain",
+            "linjector",
+            // Anti-cheat / security libs
+            "libsecurity",
+            "libanticheat",
+            "libncsec",
+            "libtencentc",
+            "libbsec",
+            "libQSEC",
+            "libGameSec",
+            "libprotect",
+            // Root / virtual environment markers
+            "com.topjohnwu.magisk",
+            "io.github.lsposed",
+            "me.weishu.kernelsu",
+            "io.github.vvb2060",
+            // Xhook itself (hide from anti-cheat)
+            "libxhook"
         };
         
         // Bug fix: loop to replace ALL occurrences, not just first
@@ -309,7 +333,61 @@ int fake_system_property_get(const char *name, char *value) {
         strcpy(value, "1");
         return strlen(value);
     }
-    
+
+    // Spoof Android version fingerprint to a clean stock build
+    if (propName == "ro.build.fingerprint") {
+        strcpy(value, "google/walleye/walleye:8.1.0/OPM1.171019.011/4448085:user/release-keys");
+        return strlen(value);
+    }
+
+    // Hide developer/test flags
+    if (propName == "ro.test_harness") {
+        strcpy(value, "0");
+        return strlen(value);
+    }
+    if (propName == "ro.monkey") {
+        strcpy(value, "0");
+        return strlen(value);
+    }
+
+    // SafetyNet / Play Integrity checks
+    if (propName == "ro.boot.veritymode") {
+        strcpy(value, "enforcing");
+        return strlen(value);
+    }
+    if (propName == "ro.boot.verifiedbootstate") {
+        strcpy(value, "green");
+        return strlen(value);
+    }
+    if (propName == "ro.boot.flash.locked") {
+        strcpy(value, "1");
+        return strlen(value);
+    }
+    if (propName == "ro.boot.warranty_bit") {
+        strcpy(value, "0");
+        return strlen(value);
+    }
+
+    // Hide rooted kernel
+    if (propName == "ro.bootimage.build.type") {
+        strcpy(value, "user");
+        return strlen(value);
+    }
+    if (propName == "ro.product.build.type") {
+        strcpy(value, "user");
+        return strlen(value);
+    }
+
+    // Hide USB debugging
+    if (propName == "service.adb.root") {
+        strcpy(value, "0");
+        return strlen(value);
+    }
+    if (propName == "ro.adb.secure") {
+        strcpy(value, "1");
+        return strlen(value);
+    }
+
     return orig_system_property_get(name, value);
 }
 
@@ -331,7 +409,15 @@ void spoofSystemProperties() {
         dlclose(libcutils);
     }
     
-    ANTI_LOGI("Property spoofing installed (debuggable, secure, build.tags, build.type, selinux)");
+    ANTI_LOGI("Property spoofing installed:");
+    ANTI_LOGI("  + ro.debuggable, ro.secure, ro.adb.secure");
+    ANTI_LOGI("  + ro.build.tags, ro.build.type, ro.build.selinux");
+    ANTI_LOGI("  + ro.build.fingerprint (spoofed to stock Pixel)");
+    ANTI_LOGI("  + ro.test_harness, ro.monkey");
+    ANTI_LOGI("  + ro.boot.veritymode, ro.boot.verifiedbootstate");
+    ANTI_LOGI("  + ro.boot.flash.locked, ro.boot.warranty_bit");
+    ANTI_LOGI("  + ro.bootimage.build.type, ro.product.build.type");
+    ANTI_LOGI("  + service.adb.root");
 }
 
 // ============= HOOK ANTI-CHEAT (SAFE VERSION) =============

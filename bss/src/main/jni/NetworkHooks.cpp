@@ -15,18 +15,28 @@ int (*orig_getaddrinfo)(const char* node, const char* service,
                         const struct addrinfo* hints, struct addrinfo** res) = nullptr;
 
 // ============= IP BLACKLIST =============
+// Helper: check if an IPv4 address (in dotted string) is in a CIDR subnet
+static bool ipInSubnet(const std::string& ip, const std::string& subnet, int prefixLen) {
+    struct in_addr ipAddr, subnetAddr;
+    if (inet_pton(AF_INET, ip.c_str(), &ipAddr) != 1) return false;
+    if (inet_pton(AF_INET, subnet.c_str(), &subnetAddr) != 1) return false;
+    uint32_t mask = (prefixLen == 0) ? 0 : htonl(~((1u << (32 - prefixLen)) - 1));
+    return (ipAddr.s_addr & mask) == (subnetAddr.s_addr & mask);
+}
+
 bool isBlockedIP(const std::string& ip) {
-    // Daftar IP yang harus diblock
-    std::vector<std::string> blockedIPs = {
+    // ======= EXACT IP BLOCKLIST =======
+    static const char* blockedIPs[] = {
         // Easebar telemetry & tracking
         "23.40.101.91",
         "13.248.222.62",
         "8.221.213.15",
-        
+
         // AppsFlyer tracking
         "47.84.148.228",
-        
-        // Additional telemetry IPs (port 4999 group)
+        "47.84.149.192",
+
+        // Telemetry IPs (port 4999 group)
         "8.221.191.207",
         "23.216.54.234",
         "35.198.101.208",
@@ -53,18 +63,62 @@ bool isBlockedIP(const std::string& ip) {
         "34.174.96.119",
         "34.174.74.33",
         "8.219.40.19",
-        "47.84.149.192",
         "23.205.117.99",
         "34.120.144.63",
         "23.205.117.56",
-        "34.174.169.226"
+        "34.174.169.226",
+
+        // Netease anti-cheat & ban server IPs
+        "182.254.116.117",
+        "140.207.69.43",
+        "140.207.127.155",
+        "140.207.123.184",
+        "119.167.164.85",
+        "106.61.26.249",
+
+        // Known Netease reporting infrastructure
+        "59.111.0.251",
+        "59.111.179.170",
+        "59.111.160.195",
+        "59.111.181.60",
+        "223.252.199.69",
+        "223.252.199.11",
+        "113.96.232.215",
+        "113.96.208.100",
+        "112.13.122.1",
+        "112.13.119.17",
+
+        // Firebase / Google telemetry endpoints
+        "74.125.200.95",
+        "142.250.4.95",
+        "142.250.185.46",
+
+        // Sentry crash reporting
+        "35.168.22.104",
+        "54.148.24.159",
+
+        nullptr
     };
-    
-    for (const auto& blocked : blockedIPs) {
-        if (ip == blocked) {
-            return true;
-        }
+
+    for (int i = 0; blockedIPs[i] != nullptr; i++) {
+        if (ip == blockedIPs[i]) return true;
     }
+
+    // ======= SUBNET / RANGE BLOCKLIST =======
+    // Block known Netease server IP ranges used for anti-cheat/telemetry
+    struct { const char* subnet; int prefix; } subnets[] = {
+        { "8.219.0.0",    16 },  // Alibaba Cloud (Netease telemetry)
+        { "8.221.0.0",    16 },  // Alibaba Cloud (Netease telemetry)
+        { "47.84.0.0",    16 },  // Alibaba Cloud (AppsFlyer tracking)
+        { "35.215.0.0",   16 },  // Google Cloud (BloodStrike reporting)
+        { "34.174.0.0",   16 },  // Google Cloud (BloodStrike reporting)
+        { nullptr, 0 }
+    };
+
+    for (int i = 0; subnets[i].subnet != nullptr; i++) {
+        if (ipInSubnet(ip, subnets[i].subnet, subnets[i].prefix)) return true;
+    }
+
     return false;
 }
 
