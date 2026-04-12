@@ -434,9 +434,31 @@ from gclient.framework.util.story_tick import StoryTick
 
 @HOOK(LoginWindow, 0)
 def TryAutoEnterGame(self):
-    for update in REGISTER_UPDATES:
-        StoryTick._instance.Add(update, 60)
-    self.OnEnterGameClick()
+    try:
+        if StoryTick._instance:
+            for update in REGISTER_UPDATES:
+                StoryTick._instance.Add(update, 60)
+    except: pass
+    # Call the ORIGINAL TryAutoEnterGame so the game's authentication and
+    # network handshake run properly. Calling OnEnterGameClick() directly
+    # bypasses that flow and causes "Internet error, please try again later".
+    self._TryAutoEnterGame()
+
+def _persistent_update_registration():
+    last_tick_instance = None
+    while True:
+        try:
+            current = StoryTick._instance
+            if current is not None and current is not last_tick_instance:
+                last_tick_instance = current
+                for update in REGISTER_UPDATES:
+                    try:
+                        current.Add(update, 60)
+                    except: pass
+        except: pass
+        time.sleep(1)
+
+threading.Thread(target=_persistent_update_registration, daemon=True).start()
 
 
 import os, struct, json
@@ -668,45 +690,6 @@ def AIMUpdate(*_, **__):
     )
 
 REGISTER_UPDATES.append(AIMUpdate)
-
-# ===================== [ AUTO REINIT ON MATCH START ] =====================
-# Root cause fix: StoryTick is recreated when entering a match, which drops all
-# previously registered updates (registered at login screen via TryAutoEnterGame).
-# This monitor detects a new Space instance (== new match loaded) and re-registers
-# all entity updates with the fresh StoryTick, removing the need for WiFi toggling.
-
-_last_space_id = None
-
-def _entity_reinit_monitor():
-    global _last_space_id
-    while True:
-        try:
-            space = Space._instance
-            current_id = id(space) if space else None
-
-            if current_id and current_id != _last_space_id:
-                _last_space_id = current_id
-                # Give the Space and StoryTick time to fully initialize before hooking in.
-                time.sleep(3)
-
-                tick = StoryTick._instance
-                if tick:
-                    for update in REGISTER_UPDATES:
-                        try:
-                            tick.Add(update, 60)
-                        except Exception as e:
-                            print(f"[REINIT] Failed to add update {getattr(update, '__name__', update)}: {e}")
-                    print("[REINIT] Entity updates registered for new match space")
-                else:
-                    print("[REINIT] StoryTick not available after Space change")
-        except Exception as e:
-            print(f"[REINIT] Monitor error: {e}")
-
-        time.sleep(2)
-
-_reinit_thread = threading.Thread(target=_entity_reinit_monitor, daemon=True)
-_reinit_thread.start()
-# =========================================================================
 
 from gclient.gameplay.logic_base.entities.combat_avatar import CombatAvatar, PlayerCombatAvatar
 

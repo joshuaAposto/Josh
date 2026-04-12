@@ -407,7 +407,8 @@ std::string Login(const char *user_key) {
         }
     }
     curl_easy_cleanup(curl);
-    jvm->DetachCurrentThread();
+    // NOTE: jvm->DetachCurrentThread() was already called above after the JNI section.
+    // Calling it a second time here corrupts JVM thread state — removed.
     return bValid ? "OK" : errMsg;
 }
 

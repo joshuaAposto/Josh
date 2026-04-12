@@ -565,8 +565,8 @@ def log_bypass(text):
             f.write(text + "\n")
     except Exception as e:
         print(f"[LOG ERROR] {e}")
-		
-		
+                
+                
 # ✅ Hook ke ProcessNativeHotfix (index 2)
 @HOOK(cimp_anti_plugin.PlayerCombatAvatarMember, 2)
 def ProcessNativeHotfix(self):
@@ -593,8 +593,8 @@ def AntiPenetrateDrawMovePath(self, pivots, hits):
         log_bypass("[BYPASS] AntiPenetrateDrawMovePath() dimatikan")
         return
     return self._AntiPenetrateDrawMovePath(pivots, hits)
-	
-	
+        
+        
 @HOOK(WeaponCase)
 def SetSwitchWeaponDuration(self, raise_speed, drop_speed, **__):
     return self._SetSwitchWeaponDuration(self, raise_speed, drop_speed, **__) * (0.0001 if sync_attrs.get('bSwitch') else 1)
@@ -1011,31 +1011,50 @@ WEP = {
     95: ['Piso2', 51000001],  
     130: ['KAPAK', 21000010],
     
-    # MELE
-	33: ['DAGGER', 11000016],
-	86: ['KATANA', 31000005], 
-	84: ['AXE', 21000005],
+    # MELEE — fixed: each must have a unique key (33 was duplicate with Piso above)
+    87: ['DAGGER', 11000016],
+    86: ['KATANA', 31000005], 
+    84: ['AXE', 21000005],
 }
 
 
 @HOOK(EquipCaseFactory, 0)
 def Create(wid, *args, **kwargs):
-    # weaponCase = EquipCaseFactory._Create(wid, *args, **kwargs)
-    # GetAllWeaponSkinListByGunID(weaponCase.gun_id)
-
     args = list(args)
+
+    chosen_skin = None
 
     if sync_attrs.get('bSkinHack'):
         if wid in WEP:
             wids = WEP[wid][1:]
-            if wids: args[4] = random.choice(wids)
+            if wids:
+                chosen_skin = random.choice(wids)
+                # Bug fix: bounds-check before setting args[4]
+                # Extend args list if it is shorter than expected
+                while len(args) < 5:
+                    args.append(0)
+                args[4] = chosen_skin
 
     result = EquipCaseFactory._Create(wid, *args, **kwargs)
-    if sync_attrs.get('bSkinHack'):
-        if result:
-            result.show_guise_bullet_trace = True
-            # result.show_guise_hit_effect = False
-    
+
+    if sync_attrs.get('bSkinHack') and result:
+        result.show_guise_bullet_trace = True
+        # Bug fix: also force guise_id directly on result object
+        # so the skin shows even if args[4] was not the right index
+        if chosen_skin is not None:
+            try:
+                result.guise_id = chosen_skin
+            except Exception:
+                pass
+            try:
+                result.skin_id = chosen_skin
+            except Exception:
+                pass
+            try:
+                result.equip_guise_id = chosen_skin
+            except Exception:
+                pass
+
     return result
 
 @HOOK(GunSmithDiyWindow)
