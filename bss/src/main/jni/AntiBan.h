@@ -14,9 +14,8 @@
 #include "xhook/xhook.h"
 
 #define ANTIBAN_TAG "AntiBan"
-// Silenced: logcat output exposes cheat activity to anti-cheat log scanners
-#define ANTIBAN_LOGI(...) ((void)0)
-#define ANTIBAN_LOGW(...) ((void)0)
+#define ANTIBAN_LOGI(...) __android_log_print(ANDROID_LOG_INFO,  ANTIBAN_TAG, __VA_ARGS__)
+#define ANTIBAN_LOGW(...) __android_log_print(ANDROID_LOG_WARN,  ANTIBAN_TAG, __VA_ARGS__)
 
 // ============================================================
 // SOCKET FD TRACKER
@@ -99,31 +98,6 @@ static bool payloadContainsBanKeyword(const void* buf, size_t len) {
         "teleport_detected",
         "no_recoil_detected",
         "esp_detected",
-        // NetEase-specific field names (from observed network traffic)
-        "report_type",
-        "cheat_type",
-        "hack_type",
-        "security_event",
-        "risk_event",
-        "risk_level",
-        "abnormal_data",
-        "behavior_data",
-        "suspicious_data",
-        "scan_result",
-        "process_scan",
-        "lib_scan",
-        "maps_scan",
-        "file_tamper",
-        "signature_fail",
-        "checksum_fail",
-        "verify_fail",
-        "anti_tamper",
-        "cheat_evidence",
-        "report_evidence",
-        "upload_evidence",
-        "game_cheat",
-        "fair_play",
-        "unfair_play",
         nullptr
     };
 
@@ -156,7 +130,7 @@ static bool payloadContainsBanKeyword(const void* buf, size_t len) {
 static bool incomingIsBanNotification(const void* buf, size_t len) {
     if (!buf || len == 0) return false;
 
-    size_t scanLen = (len > 8192) ? 8192 : len;
+    size_t scanLen = (len > 4096) ? 4096 : len;
     const char* data = (const char*)buf;
 
     static const char* banResponses[] = {
@@ -267,29 +241,6 @@ ssize_t antiban_writev(int fd, const struct iovec* iov, int iovcnt) {
 }
 
 // ============================================================
-// SENDMSG HOOK
-// sendmsg() is another socket send path that bypasses send/sendto
-// ============================================================
-static ssize_t (*orig_ab_sendmsg)(int sockfd, const struct msghdr* msg, int flags) = nullptr;
-
-ssize_t antiban_sendmsg(int sockfd, const struct msghdr* msg, int flags) {
-    if (msg && msg->msg_iov) {
-        for (size_t i = 0; i < (size_t)msg->msg_iovlen; i++) {
-            if (msg->msg_iov[i].iov_base && msg->msg_iov[i].iov_len > 0) {
-                if (payloadContainsBanKeyword(msg->msg_iov[i].iov_base,
-                                              msg->msg_iov[i].iov_len)) {
-                    ssize_t total = 0;
-                    for (size_t j = 0; j < (size_t)msg->msg_iovlen; j++)
-                        total += msg->msg_iov[j].iov_len;
-                    return total;
-                }
-            }
-        }
-    }
-    return orig_ab_sendmsg(sockfd, msg, flags);
-}
-
-// ============================================================
 // SEND / SENDTO / RECV / RECVFROM HOOKS
 // ============================================================
 static ssize_t (*orig_ab_send)(int sockfd, const void* buf, size_t len, int flags) = nullptr;
@@ -379,10 +330,6 @@ static inline void installAntiBanHooks() {
                        (void*)antiban_write, (void**)&orig_ab_write) == 0) count++;
     if (xhook_register(".*\\.so$", "writev",
                        (void*)antiban_writev, (void**)&orig_ab_writev) == 0) count++;
-
-    // sendmsg hook — another socket send path bypassing send/sendto
-    if (xhook_register(".*\\.so$", "sendmsg",
-                       (void*)antiban_sendmsg, (void**)&orig_ab_sendmsg) == 0) count++;
 
     xhook_refresh(0);
 

@@ -324,73 +324,130 @@ struct hostent *hookedGetHostByAddr(const void *addr, socklen_t len, int type) {
 
 struct hostent *hookedGetHostByName(const char *name) {
     IF_SERVER_BYPASS_RETURN(originalGetHostByName(name));
-
-    if (!Firewall || !name) {
+    
+    if (!name) {
         return originalGetHostByName(name);
     }
-
-    // Block the DNS lookup entirely if domain is blocked
-    if (isBlockedDomain(name)) {
-        XXX = 0;
-        return NULL;
-    }
-
+    
     struct hostent *result = originalGetHostByName(name);
+    if (result != NULL && result->h_addr_list[0] != NULL) {
+        char ip[INET6_ADDRSTRLEN];
+        inet_ntop(result->h_addrtype, result->h_addr_list[0], ip, INET6_ADDRSTRLEN);
+    }
     return result;
 }
 
 int hookedSocket(int domain, int type, int protocol) {
-    return originalSocket(domain, type, protocol);
+    int sockfd = originalSocket(domain, type, protocol);
+    if (XXX == 1000) {
+        close(sockfd);
+        return -50000;
+    }
+    return sockfd;
 }
 
 int hookedConnect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
-    if (!Firewall || !addr) {
-        return originalConnect(sockfd, addr, addrlen);
+    if (XXX == -7000) {
+        return 0;
     }
-
-    // Block IPv4 connections to known bad domains via reverse DNS
-    if (addr->sa_family == AF_INET) {
-        struct sockaddr_in *addr4 = (struct sockaddr_in *)addr;
-        char ip[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &addr4->sin_addr, ip, sizeof(ip));
-
-        struct hostent *he = gethostbyaddr(&addr4->sin_addr, sizeof(addr4->sin_addr), AF_INET);
-        if (he && he->h_name && isBlockedDomain(he->h_name)) {
-            errno = EHOSTUNREACH;
-            return -1;
-        }
-    }
-    // Block IPv6 connections to known bad domains via reverse DNS
-    else if (addr->sa_family == AF_INET6) {
-        struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *)addr;
-        struct hostent *he = gethostbyaddr(&addr6->sin6_addr, sizeof(addr6->sin6_addr), AF_INET6);
-        if (he && he->h_name && isBlockedDomain(he->h_name)) {
-            errno = EHOSTUNREACH;
-            return -1;
-        }
-    }
-
     return originalConnect(sockfd, addr, addrlen);
 }
 
-void hookFunctions() {
-    void *handle = dlopen("libc.so", RTLD_LAZY);
-    if (handle == NULL) return;
+// Additional hook functions
+void (*original_system_property_get)(const char *, char *) = NULL;
 
-    originalSocket        = (SocketFunc)dlsym(handle, "socket");
-    originalConnect       = (ConnectFunc)dlsym(handle, "connect");
-    originalInetPton      = (InetPtonFunc)dlsym(handle, "inet_pton");
-    originalGetAddrInfo   = (GetAddrInfoFunc)dlsym(handle, "getaddrinfo");
+void hooked_system_property_get(const char *name, char *value) {
+    if (name && strcmp(name, "ro.hardware") == 0) {
+        strcpy(value, "qualcom");
+        printf("Modified hardware name: %s\n", value);
+        return;
+    }
+    if (original_system_property_get) {
+        original_system_property_get(name, value);
+    }
+}
+
+char *(*originalStrstr)(const char *haystack, const char *needle) = NULL;
+
+char *hookedStrstr(const char *haystack, const char *needle) {
+    if (haystack && strstr(haystack, "vphonegaga") != NULL) {
+        char *modifiedHaystack = strdup(haystack);
+        if (modifiedHaystack) {
+            char *occurrence = strstr(modifiedHaystack, "crash6777777");
+            if (occurrence != NULL) {
+                strncpy(occurrence, "blocked", strlen("blocked"));
+            }
+            free(modifiedHaystack);
+        }
+    }
+    return originalStrstr(haystack, needle);
+}
+
+// Network I/O hook functions
+ssize_t (*original_send)(int sockfd, const void *buf, size_t len, int flags) = NULL;
+ssize_t (*original_recv)(int sockfd, void *buf, size_t len, int flags) = NULL;
+ssize_t (*original_recvfrom)(int sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen) = NULL;
+ssize_t (*original_sendto)(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen) = NULL;
+
+ssize_t hooked_send(int sockfd, const void *buf, size_t len, int flags) {
+    return original_send(sockfd, buf, len, flags);
+}
+
+ssize_t hooked_recv(int sockfd, void *buf, size_t len, int flags) {
+    return original_recv(sockfd, buf, len, flags);
+}
+
+ssize_t hooked_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen) {
+    return original_recvfrom(sockfd, buf, len, flags, src_addr, addrlen);
+}
+
+ssize_t hooked_sendto(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen) {
+    return original_sendto(sockfd, buf, len, flags, dest_addr, addrlen);
+}
+
+void hookFunctions() {
+    void *handle = dlopen("libGame.so", RTLD_LAZY);
+    if (handle == NULL) {
+        handle = dlopen("libc.so", RTLD_LAZY);
+        if (handle == NULL) {
+            return;
+        }
+    }
+    
+    // Get original function pointers
+    originalSocket = (SocketFunc)dlsym(handle, "socket");
+    originalConnect = (ConnectFunc)dlsym(handle, "connect");
+    originalInetPton = (InetPtonFunc)dlsym(handle, "inet_pton");
+    originalGetAddrInfo = (GetAddrInfoFunc)dlsym(handle, "getaddrinfo");
     originalGetHostByAddr = (GetHostByAddrFunc)dlsym(handle, "gethostbyaddr");
     originalGetHostByName = (GetHostByNameFunc)dlsym(handle, "gethostbyname");
-
-    if (originalSocket)        DobbyHook((void*)originalSocket,        (void*)hookedSocket,        (void**)&originalSocket);
-    if (originalConnect)       DobbyHook((void*)originalConnect,       (void*)hookedConnect,       (void**)&originalConnect);
-    if (originalInetPton)      DobbyHook((void*)originalInetPton,      (void*)hookedInetPton,      (void**)&originalInetPton);
-    if (originalGetAddrInfo)   DobbyHook((void*)originalGetAddrInfo,   (void*)hookedGetAddrInfo,   (void**)&originalGetAddrInfo);
-    if (originalGetHostByAddr) DobbyHook((void*)originalGetHostByAddr, (void*)hookedGetHostByAddr, (void**)&originalGetHostByAddr);
-    if (originalGetHostByName) DobbyHook((void*)originalGetHostByName, (void*)hookedGetHostByName, (void**)&originalGetHostByName);
-
+    original_system_property_get = (void(*)(const char *, char *))dlsym(handle, "__system_property_get");
+    originalStrstr = (char *(*)(const char *, const char *))dlsym(handle, "strstr");
+    original_send = (ssize_t(*)(int, const void *, size_t, int))dlsym(handle, "send");
+    original_recv = (ssize_t(*)(int, void *, size_t, int))dlsym(handle, "recv");
+    original_recvfrom = (ssize_t(*)(int, void *, size_t, int, struct sockaddr *, socklen_t *))dlsym(handle, "recvfrom");
+    original_sendto = (ssize_t(*)(int, const void *, size_t, int, const struct sockaddr *, socklen_t))dlsym(handle, "sendto");
+    
+    // Hook the functions using Dobby
+    if (originalSocket != NULL) {
+        DobbyHook((void *)originalSocket, (void *)hookedSocket, (void **)&originalSocket);
+    }
+    if (originalConnect != NULL) {
+        DobbyHook((void *)originalConnect, (void *)hookedConnect, (void **)&originalConnect);
+    }
+    if (originalInetPton != NULL) {
+        DobbyHook((void *)originalInetPton, (void *)hookedInetPton, (void **)&originalInetPton);
+    }
+    if (originalGetAddrInfo != NULL) {
+        DobbyHook((void *)originalGetAddrInfo, (void *)hookedGetAddrInfo, (void **)&originalGetAddrInfo);
+    }
+    if (originalGetHostByAddr != NULL) {
+        DobbyHook((void *)originalGetHostByAddr, (void *)hookedGetHostByAddr, (void **)&originalGetHostByAddr);
+    }
+    if (originalGetHostByName != NULL) {
+        DobbyHook((void *)originalGetHostByName, (void *)hookedGetHostByName, (void **)&originalGetHostByName);
+    }
+    
     dlclose(handle);
 }
 

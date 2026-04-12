@@ -6,8 +6,7 @@
 #include <errno.h>
 
 #define NET_TAG "NetworkHook"
-// Silenced: logcat reveals network blocking activity to anti-cheat scanners
-#define NET_LOGI(...) ((void)0)
+#define NET_LOGI(...) __android_log_print(ANDROID_LOG_INFO, NET_TAG, __VA_ARGS__)
 
 // Define global function pointers
 int (*orig_connect)(int sockfd, const struct sockaddr* addr, socklen_t addrlen) = nullptr;
@@ -352,8 +351,7 @@ void installNetworkHooks() {
 #include <errno.h>
 
 #define NET_TAG "NetworkHook"
-// Silenced: logcat reveals network blocking activity to anti-cheat scanners
-#define NET_LOGI(...) ((void)0)
+#define NET_LOGI(...) __android_log_print(ANDROID_LOG_INFO, NET_TAG, __VA_ARGS__)
 
 // Define global function pointers
 int (*orig_connect)(int sockfd, const struct sockaddr* addr, socklen_t addrlen) = nullptr;
@@ -596,8 +594,7 @@ void installNetworkHooks() {
 #include <errno.h>
 
 #define NET_TAG "NetworkHook"
-// Silenced: logcat reveals network blocking activity to anti-cheat scanners
-#define NET_LOGI(...) ((void)0)
+#define NET_LOGI(...) __android_log_print(ANDROID_LOG_INFO, NET_TAG, __VA_ARGS__)
 
 // Define global function pointers
 int (*orig_connect)(int sockfd, const struct sockaddr* addr, socklen_t addrlen) = nullptr;
