@@ -434,31 +434,9 @@ from gclient.framework.util.story_tick import StoryTick
 
 @HOOK(LoginWindow, 0)
 def TryAutoEnterGame(self):
-    try:
-        if StoryTick._instance:
-            for update in REGISTER_UPDATES:
-                StoryTick._instance.Add(update, 60)
-    except: pass
-    # Call the ORIGINAL TryAutoEnterGame so the game's authentication and
-    # network handshake run properly. Calling OnEnterGameClick() directly
-    # bypasses that flow and causes "Internet error, please try again later".
-    self._TryAutoEnterGame()
-
-def _persistent_update_registration():
-    last_tick_instance = None
-    while True:
-        try:
-            current = StoryTick._instance
-            if current is not None and current is not last_tick_instance:
-                last_tick_instance = current
-                for update in REGISTER_UPDATES:
-                    try:
-                        current.Add(update, 60)
-                    except: pass
-        except: pass
-        time.sleep(1)
-
-threading.Thread(target=_persistent_update_registration, daemon=True).start()
+    for update in REGISTER_UPDATES:
+        StoryTick._instance.Add(update, 60)
+    self.OnEnterGameClick()
 
 
 import os, struct, json

@@ -46,17 +46,7 @@ bool AntiTelemetry::isWhitelisted(const std::string& domain) {
         "cdn.netease.com",        // Content delivery
         "update.netease.com",     // Game updates
         "match.netease.com",      // Matchmaking
-        "voice.netease.com",      // Voice chat
-        "pay.netease.com",        // Payment
-        "res.netease.com",        // Game resources
-        "dl.netease.com",         // Download server
-        "download.netease.com",   // Download server
-        "patch.netease.com",      // Patch server
-        "gdl.easebar.com",        // Game Download Links CDN
-        "gph.easebar.com",        // Game Patch Host
-        "gsf.easebar.com",        // Game Storage Files
-        "nfile.easebar.com",      // Game file CDN
-        "cdn.easebar.com"         // General CDN
+        "voice.netease.com"       // Voice chat
     };
     
     // Bug fix: use suffix/exact domain matching to prevent whitelist bypass attacks
@@ -441,17 +431,7 @@ bool AntiTelemetry::isWhitelisted(const std::string& domain) {
         "cdn.netease.com",        // Content delivery
         "update.netease.com",     // Game updates
         "match.netease.com",      // Matchmaking
-        "voice.netease.com",      // Voice chat
-        "pay.netease.com",        // Payment
-        "res.netease.com",        // Game resources
-        "dl.netease.com",         // Download server
-        "download.netease.com",   // Download server
-        "patch.netease.com",      // Patch server
-        "gdl.easebar.com",        // Game Download Links CDN
-        "gph.easebar.com",        // Game Patch Host
-        "gsf.easebar.com",        // Game Storage Files
-        "nfile.easebar.com",      // Game file CDN
-        "cdn.easebar.com"         // General CDN
+        "voice.netease.com"       // Voice chat
     };
     
     for (const auto& allowed : whitelist) {
@@ -754,17 +734,7 @@ bool AntiTelemetry::isWhitelisted(const std::string& domain) {
         "cdn.netease.com",        // Content delivery
         "update.netease.com",     // Game updates
         "match.netease.com",      // Matchmaking
-        "voice.netease.com",      // Voice chat
-        "pay.netease.com",        // Payment
-        "res.netease.com",        // Game resources
-        "dl.netease.com",         // Download server
-        "download.netease.com",   // Download server
-        "patch.netease.com",      // Patch server
-        "gdl.easebar.com",        // Game Download Links CDN
-        "gph.easebar.com",        // Game Patch Host
-        "gsf.easebar.com",        // Game Storage Files
-        "nfile.easebar.com",      // Game file CDN
-        "cdn.easebar.com"         // General CDN
+        "voice.netease.com"       // Voice chat
     };
     
     for (const auto& allowed : whitelist) {

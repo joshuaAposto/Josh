@@ -11,8 +11,7 @@
 #include <dirent.h>
 
 #define ANTI_TAG "AntiDetect"
-// Silenced: writing to logcat reveals cheat presence to anti-cheat logcat scanners
-#define ANTI_LOGI(...) ((void)0)
+#define ANTI_LOGI(...) __android_log_print(ANDROID_LOG_INFO, ANTI_TAG, __VA_ARGS__)
 
 // Hide from memory scanning
 void hideMemoryRegions();

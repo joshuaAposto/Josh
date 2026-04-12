@@ -9,9 +9,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdarg.h>
-#include <unistd.h>
-#include <signal.h>
 
 // Flag untuk mengontrol proteksi
 static bool g_antiDetectionActive = false;
@@ -20,68 +17,51 @@ static bool g_antiDetectionActive = false;
 static ssize_t (*orig_read)(int fd, void *buf, size_t count) = nullptr;
 static FILE* (*orig_fopen)(const char *pathname, const char *mode) = nullptr;
 
-// Hide TracerPid in /proc/self/status buffer to defeat anti-debug checks
-static void hideProcStatusTracerPid(char* buf, ssize_t len) {
-    char* p = buf;
-    char* end = buf + len;
-    while (p < end) {
-        if (strncmp(p, "TracerPid:", 10) == 0) {
-            char* nl = (char*)memchr(p, '\n', end - p);
-            if (!nl) nl = end;
-            char* val = p + 10;
-            while (val < nl && (*val == '\t' || *val == ' ')) val++;
-            if (val < nl) *val = '0';
-            val++;
-            while (val < nl) *val++ = ' ';
-            break;
-        }
-        char* nl = (char*)memchr(p, '\n', end - p);
-        if (!nl) break;
-        p = nl + 1;
-    }
-}
-
+// Bug fix: Check if fd points to /proc/self/maps before filtering,
+// and loop to replace ALL occurrences (not just the first)
 ssize_t fake_read(int fd, void *buf, size_t count) {
     ssize_t ret = orig_read(fd, buf, count);
-
-    if (!g_antiDetectionActive || ret <= 0 || !buf) return ret;
-
-    char fdPath[64], linkTarget[256] = {0};
-    snprintf(fdPath, sizeof(fdPath), "/proc/self/fd/%d", fd);
-    ssize_t llen = readlink(fdPath, linkTarget, sizeof(linkTarget) - 1);
-    if (llen <= 0) return ret;
-    linkTarget[llen] = '\0';
-
-    // Filter suspicious lib names from /proc/*/maps
-    if (strstr(linkTarget, "maps")) {
+    
+    if (!g_antiDetectionActive) return ret;
+    
+    if (ret > 0 && buf) {
+        // Only filter reads from /proc/self/maps to avoid corrupting game data
+        char fdPath[64];
+        char linkTarget[256] = {0};
+        snprintf(fdPath, sizeof(fdPath), "/proc/self/fd/%d", fd);
+        ssize_t len = readlink(fdPath, linkTarget, sizeof(linkTarget) - 1);
+        if (len <= 0) return ret;
+        linkTarget[len] = '\0';
+        
+        if (strstr(linkTarget, "/proc/self/maps") == nullptr &&
+            strstr(linkTarget, "/proc/") == nullptr) {
+            return ret;
+        }
+        
         char* buffer = (char*)buf;
-        static const char* filterStrings[] = {
-            "libEncrypt.so", "libsubstrate", "libxposed", "libdobby",
-            "libhookzz", "libshadowhook", "libwhale", "libepic",
-            "libreframwork", "frida-agent", "frida-gadget", "frida-helper",
-            "gum-js-loop", "gmain", "linjector", "libsecurity", "libanticheat",
-            "libncsec", "libtencentc", "libbsec", "libQSEC", "libGameSec",
-            "libprotect", "com.topjohnwu.magisk", "io.github.lsposed",
-            "me.weishu.kernelsu", "io.github.vvb2060", "libxhook",
-            "libNCSecurity", "libGameSDK", "libTPSdk", "libmsec",
-            nullptr
+        
+        std::vector<std::string> filterStrings = {
+            "libEncrypt.so",
+            "libsubstrate",
+            "libxposed",
+            "libdobby",
+            "libhookzz",
+            "libshadowhook",
+            "frida-agent",
+            "gum-js-loop",
+            "gmain"
         };
-        char* bufEnd = buffer + ret;
-        for (int i = 0; filterStrings[i]; i++) {
-            size_t flen = strlen(filterStrings[i]);
+        
+        // Bug fix: loop to replace ALL occurrences, not just first
+        for (const auto& filter : filterStrings) {
             char* pos = buffer;
-            while ((pos = (char*)memmem(pos, bufEnd - pos, filterStrings[i], flen)) != nullptr) {
-                memset(pos, ' ', flen);
-                pos += flen;
+            while ((pos = strstr(pos, filter.c_str())) != nullptr) {
+                memset(pos, ' ', filter.length());
+                pos += filter.length();
             }
         }
     }
-
-    // Hide TracerPid in /proc/self/status and /proc/<pid>/status
-    if (strstr(linkTarget, "status")) {
-        hideProcStatusTracerPid((char*)buf, ret);
-    }
-
+    
     return ret;
 }
 
@@ -279,41 +259,17 @@ void hideFrameworks() {
     ANTI_LOGI("Framework hiding installed (stat + lstat)");
 }
 
-// ============= ANTI DEBUGGING =============
+// ============= ANTI DEBUGGING (SAFE VERSION) =============
 void antiDebugProtection() {
-    // Claim the ptrace slot — prevents another debugger from attaching
+    ANTI_LOGI("Enabling anti-debug protection...");
+    
+    // Anti-ptrace (basic)
     ptrace(PTRACE_TRACEME, 0, 0, 0);
-
-    // Background thread: periodically reclaim ptrace slot and check for
-    // external debugger attachment via /proc/self/status TracerPid.
-    // Runs quietly with no logging to avoid leaving traces in logcat.
-    std::thread([]() {
-        while (true) {
-            // Re-issue TRACEME to keep the slot claimed after any detach
-            ptrace(PTRACE_TRACEME, 0, 0, 0);
-
-            // Read TracerPid from /proc/self/status silently
-            FILE* f = fopen("/proc/self/status", "r");
-            if (f) {
-                char line[128];
-                while (fgets(line, sizeof(line), f)) {
-                    if (strncmp(line, "TracerPid:", 10) == 0) {
-                        int tracerPid = 0;
-                        sscanf(line + 10, "%d", &tracerPid);
-                        if (tracerPid != 0) {
-                            // Debugger detected — kill our own process cleanly
-                            // This is safer than abort() as it avoids crash reporting
-                            kill(getpid(), SIGKILL);
-                        }
-                        break;
-                    }
-                }
-                fclose(f);
-            }
-
-            sleep(5);
-        }
-    }).detach();
+    
+    // REMOVED AGGRESSIVE THREAD - Tidak perlu check terus-menerus
+    // Biarkan game berjalan normal
+    
+    ANTI_LOGI("Anti-debug protection enabled (safe mode)");
 }
 
 // ============= SPOOF SYSTEM PROPERTIES =============
@@ -353,61 +309,7 @@ int fake_system_property_get(const char *name, char *value) {
         strcpy(value, "1");
         return strlen(value);
     }
-
-    // Spoof Android version fingerprint to a clean stock build
-    if (propName == "ro.build.fingerprint") {
-        strcpy(value, "google/walleye/walleye:8.1.0/OPM1.171019.011/4448085:user/release-keys");
-        return strlen(value);
-    }
-
-    // Hide developer/test flags
-    if (propName == "ro.test_harness") {
-        strcpy(value, "0");
-        return strlen(value);
-    }
-    if (propName == "ro.monkey") {
-        strcpy(value, "0");
-        return strlen(value);
-    }
-
-    // SafetyNet / Play Integrity checks
-    if (propName == "ro.boot.veritymode") {
-        strcpy(value, "enforcing");
-        return strlen(value);
-    }
-    if (propName == "ro.boot.verifiedbootstate") {
-        strcpy(value, "green");
-        return strlen(value);
-    }
-    if (propName == "ro.boot.flash.locked") {
-        strcpy(value, "1");
-        return strlen(value);
-    }
-    if (propName == "ro.boot.warranty_bit") {
-        strcpy(value, "0");
-        return strlen(value);
-    }
-
-    // Hide rooted kernel
-    if (propName == "ro.bootimage.build.type") {
-        strcpy(value, "user");
-        return strlen(value);
-    }
-    if (propName == "ro.product.build.type") {
-        strcpy(value, "user");
-        return strlen(value);
-    }
-
-    // Hide USB debugging
-    if (propName == "service.adb.root") {
-        strcpy(value, "0");
-        return strlen(value);
-    }
-    if (propName == "ro.adb.secure") {
-        strcpy(value, "1");
-        return strlen(value);
-    }
-
+    
     return orig_system_property_get(name, value);
 }
 
@@ -429,82 +331,57 @@ void spoofSystemProperties() {
         dlclose(libcutils);
     }
     
-    ANTI_LOGI("Property spoofing installed:");
-    ANTI_LOGI("  + ro.debuggable, ro.secure, ro.adb.secure");
-    ANTI_LOGI("  + ro.build.tags, ro.build.type, ro.build.selinux");
-    ANTI_LOGI("  + ro.build.fingerprint (spoofed to stock Pixel)");
-    ANTI_LOGI("  + ro.test_harness, ro.monkey");
-    ANTI_LOGI("  + ro.boot.veritymode, ro.boot.verifiedbootstate");
-    ANTI_LOGI("  + ro.boot.flash.locked, ro.boot.warranty_bit");
-    ANTI_LOGI("  + ro.bootimage.build.type, ro.product.build.type");
-    ANTI_LOGI("  + service.adb.root");
+    ANTI_LOGI("Property spoofing installed (debuggable, secure, build.tags, build.type, selinux)");
 }
 
-// ============= OPENAT HOOK (hide framework files on modern Android) =============
-static int (*orig_openat)(int dirfd, const char *pathname, int flags, ...) = nullptr;
-
-int fake_openat(int dirfd, const char *pathname, int flags, ...) {
-    if (g_antiDetectionActive && pathname) {
-        std::string path(pathname);
-        if (isFrameworkPath(path)) {
-            errno = ENOENT;
-            return -1;
-        }
-        // Hide /proc/self/maps and /proc/<pid>/maps from external scanners
-        if (path.find("/proc/") != std::string::npos &&
-            path.find("/maps") != std::string::npos) {
-            // Only deny if it's not our own pid
-            char selfMaps[64];
-            snprintf(selfMaps, sizeof(selfMaps), "/proc/%d/maps", getpid());
-            if (path != selfMaps && path != "/proc/self/maps") {
-                errno = EACCES;
-                return -1;
-            }
-        }
-    }
-    // Variadic: mode arg only matters for O_CREAT; pass 0 if not creating
-    mode_t mode = 0;
-    if (flags & O_CREAT) {
-        va_list args;
-        va_start(args, flags);
-        mode = va_arg(args, int);
-        va_end(args);
-    }
-    return orig_openat(dirfd, pathname, flags, mode);
-}
-
-// ============= HOOK ANTI-CHEAT =============
+// ============= HOOK ANTI-CHEAT (SAFE VERSION) =============
 static void* (*orig_dlopen)(const char *filename, int flags) = nullptr;
 
+// Bug fix: actually block security/anti-cheat libraries from loading
+// instead of just logging them
 void* fake_dlopen(const char *filename, int flags) {
     if (filename && g_antiDetectionActive) {
         std::string fname(filename);
-        static const char* blockedLibs[] = {
-            "libsecurity.so", "libanticheat.so", "libprotect.so",
-            "libcheck.so",    "libverify.so",    "libtp.so",
-            "libTPSdk.so",    "libmsec.so",      "libNCSecurity.so",
-            "libGameSDK.so",  "libQSEC.so",      "libbsec.so",
-            "libncsec.so",    "libGameSec.so",   "libscan.so",
-            nullptr
+        
+        // Block known anti-cheat / security module names
+        std::vector<std::string> blockedLibs = {
+            "libsecurity.so",
+            "libanticheat.so",
+            "libprotect.so",
+            "libcheck.so",
+            "libverify.so",
+            "libtp.so",
+            "libTPSdk.so",
+            "libmsec.so"
         };
-        for (int i = 0; blockedLibs[i]; i++) {
-            if (fname.find(blockedLibs[i]) != std::string::npos) {
+        
+        for (const auto& blocked : blockedLibs) {
+            if (fname.find(blocked) != std::string::npos) {
+                ANTI_LOGI("Blocked security lib load: %s", filename);
                 errno = ENOENT;
                 return nullptr;
             }
         }
+        
+        // Log (but allow) borderline security names for monitoring
+        if (fname.find("security") != std::string::npos ||
+            fname.find("anticheat") != std::string::npos) {
+            ANTI_LOGI("Detected security lib (monitoring): %s", filename);
+        }
     }
+    
     return orig_dlopen(filename, flags);
 }
 
 void hookAntiCheatFunctions() {
+    ANTI_LOGI("Installing anti-cheat hooks...");
+    
     orig_dlopen = (void* (*)(const char*, int))dlsym(RTLD_DEFAULT, "dlopen");
+    
     xhook_register(".*\\.so$", "dlopen", (void*)fake_dlopen, (void**)&orig_dlopen);
-
-    orig_openat = (int (*)(int, const char*, int, ...))dlsym(RTLD_DEFAULT, "openat");
-    xhook_register(".*\\.so$", "openat", (void*)fake_openat, (void**)&orig_openat);
-
     xhook_refresh(0);
+    
+    ANTI_LOGI("Anti-cheat hooks installed");
 }
 
 // Stubs untuk fungsi yang tidak digunakan

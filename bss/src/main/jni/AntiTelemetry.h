@@ -7,8 +7,7 @@
 #include <android/log.h>
 
 #define TELEMETRY_TAG "AntiTelemetry"
-// Silenced: logcat output is visible to anti-cheat scanners
-#define TELE_LOGI(...) ((void)0)
+#define TELE_LOGI(...) __android_log_print(ANDROID_LOG_INFO, TELEMETRY_TAG, __VA_ARGS__)
 
 // Struct untuk tracking blocked requests
 struct BlockedRequest {
@@ -61,8 +60,7 @@ void initAntiTelemetry();
 #include <android/log.h>
 
 #define TELEMETRY_TAG "AntiTelemetry"
-// Silenced: logcat output is visible to anti-cheat scanners
-#define TELE_LOGI(...) ((void)0)
+#define TELE_LOGI(...) __android_log_print(ANDROID_LOG_INFO, TELEMETRY_TAG, __VA_ARGS__)
 
 // Struct untuk tracking blocked requests
 struct BlockedRequest {
@@ -82,7 +80,7 @@ private:
     bool isWhitelisted(const std::string& domain);
     std::string getBlockReason(const std::string& domain);
     void logBlock(const std::string& domain, const std::string& reason);
-        
+	
 public:  // ← PASTIKAN shouldBlock ada di public
     AntiTelemetry();
     bool checkAndBlock(const std::string& domain);
@@ -92,14 +90,14 @@ public:  // ← PASTIKAN shouldBlock ada di public
     std::vector<BlockedRequest> getBlockHistory();
     int getTotalBlocked();
 };
-        
-        
-        
+	
+	
+	
  /*
 public:
     AntiTelemetry();
     bool checkAndBlock(const std::string& domain);
-        //bool shouldBlock(const std::string& domain);  // ← Harus public!
+	//bool shouldBlock(const std::string& domain);  // ← Harus public!
     void setEnabled(bool enabled);
     bool getEnabled();
     std::vector<BlockedRequest> getBlockHistory();
