@@ -84,24 +84,7 @@ static int isWhitelistedCDN(const char* domain) {
         strstr(domain, OBFUSCATE("auth.netease.com"))    ||
         strstr(domain, OBFUSCATE("match.netease.com"))   ||
         strstr(domain, OBFUSCATE("voice.netease.com"))   ||
-        strstr(domain, OBFUSCATE("pay.netease.com"))     ||
-        // HTTP DNS — game uses this to resolve all server IPs, must never be blocked
-        strstr(domain, OBFUSCATE("httpdns.nie.easebar.com")) ||
-        strstr(domain, OBFUSCATE("httpdns.easebar.com")) ||
-        // Game connectivity & session servers
-        strstr(domain, OBFUSCATE("gateway.nie.easebar.com")) ||
-        strstr(domain, OBFUSCATE("api.nie.easebar.com"))     ||
-        strstr(domain, OBFUSCATE("gate.nie.easebar.com"))    ||
-        strstr(domain, OBFUSCATE("gs.nie.easebar.com"))      ||
-        strstr(domain, OBFUSCATE("login.nie.easebar.com"))   ||
-        strstr(domain, OBFUSCATE("account.nie.easebar.com")) ||
-        strstr(domain, OBFUSCATE("connect.nie.easebar.com")) ||
-        strstr(domain, OBFUSCATE("lobby.nie.easebar.com"))   ||
-        strstr(domain, OBFUSCATE("room.nie.easebar.com"))    ||
-        strstr(domain, OBFUSCATE("match.nie.easebar.com"))   ||
-        strstr(domain, OBFUSCATE("game.nie.easebar.com"))    ||
-        strstr(domain, OBFUSCATE("server.nie.easebar.com"))  ||
-        strstr(domain, OBFUSCATE("filecatch.nie.easebar.com"))) {
+        strstr(domain, OBFUSCATE("pay.netease.com"))) {
         return 1;
     }
     return 0;
@@ -116,8 +99,10 @@ int isBlockedDomain(const char *domain) {
     
     // Check each blocked domain individually
     if (strstr(domain, OBFUSCATE("firebaselogging.googleapis.com")) ||
+        strstr(domain, OBFUSCATE("httpdns.nie.easebar.com")) ||
         strstr(domain, OBFUSCATE("g108na-14.gph.easebar.com")) ||
         strstr(domain, OBFUSCATE("g0-web.gsf.easebar.com")) ||
+        strstr(domain, OBFUSCATE("filecatch.nie.easebar.com")) ||
         strstr(domain, OBFUSCATE("feedback-system-dev.webapp.easebar.com")) ||
         strstr(domain, OBFUSCATE("feedback-ovs.fp.ps.easebar.com")) ||
         strstr(domain, OBFUSCATE("fb.webapp.easebar.com")) ||
