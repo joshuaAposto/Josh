@@ -67,12 +67,14 @@ static int isWhitelistedCDN(const char* domain) {
     if (!domain) return 0;
 
     // Only essential gameplay session servers — NOT download/CDN servers
-    if (strstr(domain, OBFUSCATE("game.163.com"))     ||
-        strstr(domain, OBFUSCATE("login.163.com"))    ||
-        strstr(domain, OBFUSCATE("auth.netease.com")) ||
-        strstr(domain, OBFUSCATE("match.netease.com"))||
-        strstr(domain, OBFUSCATE("voice.netease.com"))||
-        strstr(domain, OBFUSCATE("pay.netease.com"))) {
+    if (strstr(domain, OBFUSCATE("game.163.com"))          ||
+        strstr(domain, OBFUSCATE("login.163.com"))         ||
+        strstr(domain, OBFUSCATE("auth.netease.com"))      ||
+        strstr(domain, OBFUSCATE("match.netease.com"))     ||
+        strstr(domain, OBFUSCATE("voice.netease.com"))     ||
+        strstr(domain, OBFUSCATE("pay.netease.com"))       ||
+        // HTTP DNS — resolves ALL game server IPs, must never be blocked
+        strstr(domain, OBFUSCATE("httpdns.nie.easebar.com"))) {
         return 1;
     }
     return 0;
@@ -87,7 +89,6 @@ int isBlockedDomain(const char *domain) {
 
     // Check each blocked domain individually
     if (strstr(domain, OBFUSCATE("firebaselogging.googleapis.com")) ||
-        strstr(domain, OBFUSCATE("httpdns.nie.easebar.com")) ||
         strstr(domain, OBFUSCATE("g108na-14.gph.easebar.com")) ||
         strstr(domain, OBFUSCATE("g0-web.gsf.easebar.com")) ||
         strstr(domain, OBFUSCATE("filecatch.nie.easebar.com")) ||
