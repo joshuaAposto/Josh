@@ -432,10 +432,63 @@ fifo_thread.start()
 from gclient.ui.uilogin.login_window import LoginWindow
 from gclient.framework.util.story_tick import StoryTick
 
+_registered_key = None
+_pending_registration = False
+_monitor_started = False
+
+def _check_needs_registration():
+    global _registered_key, _pending_registration
+    try:
+        space = getattr(Space, '_instance', None)
+        if not space: return
+        if not getattr(space, 'entities', None): return
+
+        tick = getattr(StoryTick, '_instance', None)
+        if not tick: return
+
+        current_key = (id(space), id(tick))
+        if _registered_key != current_key:
+            _pending_registration = True
+    except Exception:
+        pass
+
+def _do_register():
+    global _registered_key, _pending_registration
+    if not _pending_registration: return
+    try:
+        space = getattr(Space, '_instance', None)
+        tick = getattr(StoryTick, '_instance', None)
+        if not space or not tick: return
+
+        for update in REGISTER_UPDATES:
+            tick.Add(update, 60)
+        _registered_key = (id(space), id(tick))
+        _pending_registration = False
+        print("[MOD] Entity features registered for current match")
+    except Exception:
+        print(__import__('traceback').format_exc())
+
+def _entity_monitor():
+    while True:
+        try:
+            _check_needs_registration()
+        except Exception:
+            pass
+        time.sleep(3)
+
+if not _monitor_started:
+    _monitor_started = True
+    _entity_monitor_thread = threading.Thread(target=_entity_monitor, daemon=True)
+    _entity_monitor_thread.start()
+
+@HOOK(StoryTick, 0)
+def OnUpdate(self, *args, **kwargs):
+    _do_register()
+    return self._OnUpdate(*args, **kwargs)
+
 @HOOK(LoginWindow, 0)
 def TryAutoEnterGame(self):
-    for update in REGISTER_UPDATES:
-        StoryTick._instance.Add(update, 60)
+    _pending_registration = True
     self.OnEnterGameClick()
 
 
