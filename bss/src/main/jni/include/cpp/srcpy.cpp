@@ -430,12 +430,89 @@ fifo_thread.start()
 from gclient.ui.uilogin.login_window import LoginWindow
 from gclient.framework.util.story_tick import StoryTick
 
+_register_lock = threading.Lock()
+_last_story_tick_id = None
+_delayed_register_active = False
+
+def _register_updates():
+    global _last_story_tick_id
+    with _register_lock:
+        try:
+            st = StoryTick._instance
+            if not st:
+                return False
+            current_id = id(st)
+            if _last_story_tick_id == current_id:
+                return True
+            for update in REGISTER_UPDATES:
+                st.Add(update, 120)
+            _last_story_tick_id = current_id
+            print("[MOD] Updates registered to StoryTick " + str(current_id))
+            return True
+        except Exception:
+            print(__import__('traceback').format_exc())
+            return False
+
 @HOOK(LoginWindow, 0)
 def TryAutoEnterGame(self):
-    for update in REGISTER_UPDATES:
-        StoryTick._instance.Add(update, 120)
+    _register_updates()
     self.OnEnterGameClick()
 
+from gclient.framework.entities.space import Space as _SpaceForHook
+
+@HOOK(_SpaceForHook, 0)
+def __init__(self, *args, **kwargs):
+    global _delayed_register_active
+    result = self.___init__(*args, **kwargs)
+    print("[MOD] Space.__init__ detected, will re-register updates")
+
+    if _delayed_register_active:
+        return result
+
+    _delayed_register_active = True
+
+    def _delayed_register():
+        global _delayed_register_active
+        import time as _time
+        try:
+            for i in range(30):
+                _time.sleep(1)
+                try:
+                    st = StoryTick._instance
+                    if st and id(st) != _last_story_tick_id:
+                        if _register_updates():
+                            print("[MOD] Updates re-registered after Space init (attempt " + str(i+1) + ")")
+                            return
+                except Exception:
+                    pass
+            print("[MOD] WARNING: Failed to re-register updates after 30 attempts")
+        finally:
+            _delayed_register_active = False
+
+    _t = threading.Thread(target=_delayed_register, daemon=True)
+    _t.start()
+    return result
+
+def _space_entity_watcher():
+    import time as _time
+    print("[MOD] Entity watcher thread started")
+    while True:
+        try:
+            _time.sleep(3)
+            st = StoryTick._instance
+            if not st:
+                continue
+            if id(st) == _last_story_tick_id:
+                continue
+            sp = getattr(Space, '_instance', None)
+            if sp and getattr(sp, 'entities', None) and len(sp.entities) > 0:
+                if _register_updates():
+                    print("[MOD] Watcher: Updates registered after entities detected")
+        except Exception:
+            pass
+
+_watcher_thread = threading.Thread(target=_space_entity_watcher, daemon=True)
+_watcher_thread.start()
 
 import os, struct, json
 
@@ -565,8 +642,8 @@ def log_bypass(text):
             f.write(text + "\n")
     except Exception as e:
         print(f"[LOG ERROR] {e}")
-		
-		
+                
+                
 # ✅ Hook ke ProcessNativeHotfix (index 2)
 @HOOK(cimp_anti_plugin.PlayerCombatAvatarMember, 2)
 def ProcessNativeHotfix(self):
@@ -593,8 +670,8 @@ def AntiPenetrateDrawMovePath(self, pivots, hits):
         log_bypass("[BYPASS] AntiPenetrateDrawMovePath() dimatikan")
         return
     return self._AntiPenetrateDrawMovePath(pivots, hits)
-	
-	
+        
+        
 @HOOK(WeaponCase)
 def SetSwitchWeaponDuration(self, raise_speed, drop_speed, **__):
     return self._SetSwitchWeaponDuration(self, raise_speed, drop_speed, **__) * (0.0001 if sync_attrs.get('bSwitch') else 1)
@@ -1012,9 +1089,9 @@ WEP = {
     130: ['KAPAK', 21000010],
     
     # MELE
-	33: ['DAGGER', 11000016],
-	86: ['KATANA', 31000005], 
-	84: ['AXE', 21000005],
+        33: ['DAGGER', 11000016],
+        86: ['KATANA', 31000005], 
+        84: ['AXE', 21000005],
 }
 
 

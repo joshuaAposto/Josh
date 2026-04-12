@@ -9,14 +9,24 @@ Android NDK project that provides game modifications for BloodStrike (com.neteas
 - **UI**: Dear ImGui overlay injected via eglSwapBuffers hook
 - **Communication**: Named pipes (FIFOs) for sync between ImGui menu and Python game hooks
 
+## Key Directories
+- `bss/` — Primary build module with the active source code
+- `src/` — Secondary/shared source directory
+
 ## Key Files
-- `src/main/jni/include/cpp/srcpy.cpp` — Embedded Python script containing all game logic hooks (ESP, aimbot, bullet tracking, skin hack, etc.)
-- `src/main/jni/main.cpp` — Native entry point, thread initialization, hook installation
-- `src/main/jni/AntiTelemetry.cpp` — Telemetry/anti-cheat domain blocking
-- `src/main/jni/NetworkHooks.cpp` — PLT/GOT network function hooks
+- `bss/src/main/jni/include/cpp/srcpy.cpp` — Embedded Python script containing all game logic hooks (ESP, aimbot, bullet tracking, skin hack, etc.)
+- `bss/src/main/jni/main.cpp` — Native entry point, thread initialization, hook installation
+- `bss/src/main/jni/AntiTelemetry.cpp` — Telemetry/anti-cheat domain blocking
+- `bss/src/main/jni/NetworkHooks.cpp` — PLT/GOT network function hooks
 
 ## Entity Feature Initialization
-Entity-based features (ESP, aimbot, magic bullet) use a two-part initialization system:
-1. **Background monitor thread** (`_entity_monitor`) polls every 3s checking if `Space._instance` has entities and `StoryTick._instance` exists
-2. **Main-thread registration** via `StoryTick.OnUpdate` hook — when the monitor sets `_pending_registration`, the next game tick registers all update functions (`EspUpdate`, `AIMUpdate`) with `StoryTick`
-3. Registration is keyed on both `Space` and `StoryTick` identity, so it auto-re-registers when either changes (new match, reconnect, etc.)
+Entity-based features (ESP, aimbot, magic bullet) use a three-layer initialization system to ensure they activate automatically when a match starts:
+
+1. **Login-time registration** — `TryAutoEnterGame` hook attempts initial registration via `_register_updates()` when entering the game from login screen
+2. **Space.__init__ hook** — Detects when a new match/space is created and spawns a delayed re-registration thread that polls for up to 30 seconds waiting for the new `StoryTick` instance
+3. **Background entity watcher** — A persistent fallback thread (`_space_entity_watcher`) polls every 3 seconds, checking if `StoryTick` instance has changed and entities exist, then re-registers updates
+
+Registration is protected by:
+- `threading.Lock` (`_register_lock`) to prevent duplicate registration from concurrent threads
+- `_last_story_tick_id` tracking to only register once per StoryTick instance (using Python object identity)
+- `_delayed_register_active` flag to prevent overlapping delayed-register threads
