@@ -47,3 +47,10 @@ Registration is protected by:
 - `threading.Lock` (`_register_lock`) to prevent duplicate registration from concurrent threads
 - `_last_story_tick_id` tracking to only register once per StoryTick instance (using Python object identity)
 - `_delayed_register_active` flag to prevent overlapping delayed-register threads
+
+## Known Fix: Fake/Low Damage in Ranked Mode
+**Problem:** In ranked/online game modes, damage was extremely low ("fake damage", ~1000 bullets to kill). Training mode worked fine. Toggling WiFi had no effect.
+
+**Root Cause:** `AntiPenetrateDrawMovePath` (index 1 of `cimp_anti_plugin.PlayerCombatAvatarMember`) was being blocked when `bBypassPlugin=true`. This function sends bullet trajectory/path data to the server for server-side hit validation in online modes. In training mode, hit validation is local/offline so blocking it had no effect. In ranked mode, the server validates each hit — with no path data, every hit was marked invalid and damage was reduced to near-zero.
+
+**Fix (srcpy.cpp line ~665):** `AntiPenetrateDrawMovePath` now always calls through to the original function. Only `ProcessNativeHotfix` and `AddNativeHotfix` (the actual anti-cheat patch loaders) remain blocked by `bBypassPlugin`.

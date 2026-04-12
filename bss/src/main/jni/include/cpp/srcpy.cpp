@@ -663,12 +663,12 @@ def AddNativeHotfix(self, content):
     return self._AddNativeHotfix(content)
 
 # ✅ Hook ke AntiPenetrateDrawMovePath (index 1)
+# NOTE: This function MUST always call through to the original.
+# It sends bullet trajectory data to the server for hit validation in ranked/online modes.
+# Blocking it causes the server to receive no path data, marking all hits as invalid
+# and applying near-zero "fake damage" — even with aimbot/ESP disabled.
 @HOOK(cimp_anti_plugin.PlayerCombatAvatarMember, 1)
 def AntiPenetrateDrawMovePath(self, pivots, hits):
-    if sync_attrs.get('bBypassPlugin'):
-        print("[BYPASS] AntiPenetrateDrawMovePath dimatikan")
-        log_bypass("[BYPASS] AntiPenetrateDrawMovePath() dimatikan")
-        return
     return self._AntiPenetrateDrawMovePath(pivots, hits)
         
         
