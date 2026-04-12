@@ -22,11 +22,9 @@
 static bool payloadContainsBanKeyword(const void* buf, size_t len) {
     if (!buf || len == 0) return false;
 
-    // Limit scan to first 4096 bytes for performance
-    size_t scanLen = (len > 4096) ? 4096 : len;
+    size_t scanLen = (len > 16384) ? 16384 : len;
     const char* data = (const char*)buf;
 
-    // Keywords that appear in BloodStrike ban-report payloads
     static const char* banKeywords[] = {
         "ban_report",
         "cheat_report",
@@ -57,6 +55,49 @@ static bool payloadContainsBanKeyword(const void* buf, size_t len) {
         "root_detected",
         "debug_detected",
         "emulator_detected",
+        "speed_hack",
+        "wallhack_detected",
+        "aimbot_detected",
+        "esp_detected",
+        "tamper_detected",
+        "signature_mismatch",
+        "abnormal_behavior",
+        "suspicious_activity",
+        "client_integrity",
+        "hash_mismatch",
+        "memory_tamper",
+        "code_inject",
+        "process_list",
+        "module_list",
+        "lib_inject",
+        "function_hook",
+        "trampoline_detect",
+        "inline_hook",
+        "got_hook",
+        "plt_hook",
+        "syscall_hook",
+        "frida_detect",
+        "xposed_detect",
+        "magisk_detect",
+        "su_binary",
+        "debug_attach",
+        "ptrace_detect",
+        "breakpoint_detect",
+        "timing_anomaly",
+        "speed_anomaly",
+        "teleport_detect",
+        "damage_anomaly",
+        "packet_replay",
+        "client_mismatch",
+        "server_validate_fail",
+        "hardware_id_mismatch",
+        "device_fingerprint",
+        "env_tamper",
+        "apk_tamper",
+        "dex_tamper",
+        "native_tamper",
+        "memory_patch",
+        "value_modify",
         nullptr
     };
 
@@ -106,6 +147,25 @@ static bool incomingIsBanNotification(const void* buf, size_t len) {
         "kick_reason",
         "forced_logout",
         "account_suspended",
+        "disconnect_cheat",
+        "session_terminate",
+        "ban_wave",
+        "hardware_ban",
+        "device_ban",
+        "ip_ban",
+        "account_lock",
+        "restriction_applied",
+        "penalty_applied",
+        "cooldown_applied",
+        "matchmaking_ban",
+        "ranked_ban",
+        "competitive_ban",
+        "warning_issued",
+        "strike_applied",
+        "account_flagged",
+        "review_pending",
+        "access_denied",
+        "login_restricted",
         nullptr
     };
 
@@ -189,8 +249,8 @@ ssize_t antiban_sendto(int sockfd, const void* buf, size_t len, int flags,
 ssize_t antiban_recv(int sockfd, void* buf, size_t len, int flags) {
     ssize_t ret = orig_ab_recv(sockfd, buf, len, flags);
     if (ret > 0 && incomingIsBanNotification(buf, (size_t)ret)) {
-        // Zero out the ban notification so the game never processes it
         memset(buf, 0, (size_t)ret);
+        ANTIBAN_LOGW("recv: ban notification zeroed (%zd bytes)", ret);
         return 0;
     }
     return ret;
@@ -201,9 +261,20 @@ ssize_t antiban_recvfrom(int sockfd, void* buf, size_t len, int flags,
     ssize_t ret = orig_ab_recvfrom(sockfd, buf, len, flags, src, addrlen);
     if (ret > 0 && incomingIsBanNotification(buf, (size_t)ret)) {
         memset(buf, 0, (size_t)ret);
+        ANTIBAN_LOGW("recvfrom: ban notification zeroed (%zd bytes)", ret);
         return 0;
     }
     return ret;
+}
+
+static ssize_t (*orig_ab_write)(int fd, const void* buf, size_t count) = nullptr;
+
+ssize_t antiban_write(int fd, const void* buf, size_t count) {
+    if (payloadContainsBanKeyword(buf, count)) {
+        ANTIBAN_LOGW("write BLOCKED: ban payload in fd=%d (%zu bytes)", fd, count);
+        return (ssize_t)count;
+    }
+    return orig_ab_write(fd, buf, count);
 }
 
 // ============================================================
@@ -228,12 +299,17 @@ static inline void installAntiBanHooks() {
     if (xhook_register(".*\\.so$", "recvfrom",
                        (void*)antiban_recvfrom, (void**)&orig_ab_recvfrom) == 0) count++;
 
+    if (xhook_register(".*\\.so$", "write",
+                       (void*)antiban_write, (void**)&orig_ab_write) == 0) count++;
+
     if (xhook_refresh(0) == 0) {
-        ANTIBAN_LOGI("Anti-Ban hooks installed: %d/4", count);
+        ANTIBAN_LOGI("Anti-Ban hooks installed: %d/5", count);
         ANTIBAN_LOGI("  + send/sendto: payload keyword blocking ACTIVE");
         ANTIBAN_LOGI("  + sendto: IP blacklist check ACTIVE");
         ANTIBAN_LOGI("  + recv/recvfrom: ban notification suppression ACTIVE");
-        ANTIBAN_LOGI("  + Keywords: 29 ban/cheat/report patterns");
+        ANTIBAN_LOGI("  + write: unix socket ban payload blocking ACTIVE");
+        ANTIBAN_LOGI("  + Keywords: 73 ban/cheat/report patterns");
+        ANTIBAN_LOGI("  + Ban responses: 30 suppression patterns");
     } else {
         ANTIBAN_LOGI("xhook_refresh failed for anti-ban hooks");
     }

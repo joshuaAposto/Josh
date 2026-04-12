@@ -37,6 +37,7 @@
 
 #include "FireWall.h"
 #include "AntiBan.h"
+#include "AntiCheatUltra.h"
 #include "draw.h"
 #include "include/input.h"
 
@@ -277,26 +278,38 @@ void* hack_thread(void*) {
     installNetworkHooks();
 
     // ========== STEP 3b: INSTALL ANTI-BAN PAYLOAD HOOKS ==========
-    LOGI("[3b/4] Installing Anti-Ban Payload Hooks...");
+    LOGI("[3b/6] Installing Anti-Ban Payload Hooks...");
     installAntiBanHooks();
+
+    // ========== STEP 4: INSTALL ANTI-DETECTION ==========
+    LOGI("[4/6] Installing Anti-Detection System...");
+    initAntiDetection();
+    LOGI("✓ Anti-Detection initialized");
+    sleep(1);
+
+    // ========== STEP 5: INSTALL ULTRA ANTI-CHEAT ==========
+    LOGI("[5/6] Installing Ultra Anti-Cheat Protection...");
+    initAntiCheatUltra();
+    LOGI("✓ Ultra Anti-Cheat initialized");
         
         if (globalAntiTelemetry && globalAntiTelemetry->getEnabled()) {
         TELE_LOGI("========================================");
         TELE_LOGI("✓ Protection System Initialized!");
         TELE_LOGI("✓ Network hooks installed");
         TELE_LOGI("✓ Anti-Telemetry active");
-        TELE_LOGI("✓ Ready to block telemetry");
+        TELE_LOGI("✓ Anti-Ban active (73 keywords)");
+        TELE_LOGI("✓ Anti-Detection active (53 paths)");
+        TELE_LOGI("✓ Ultra Guard active (9 hooks)");
+        TELE_LOGI("✓ Ready to block all threats");
         TELE_LOGI("========================================");
     } else {
         TELE_LOGI("❌ FAILED: Protection NOT active!");
     }
 
-    
-    // Wait for hooks to settle
     sleep(1);
     
-    // ========== STEP 4: VERIFY PROTECTION ==========
-    LOGI("[4/4] Verifying Protection System...");
+    // ========== STEP 6: VERIFY PROTECTION ==========
+    LOGI("[6/6] Verifying Protection System...");
     bool verified = verifyProtectionActive();
     
     if (!verified) {
@@ -354,13 +367,20 @@ void* hack_thread(void*) {
     LOGI("========================================");
     LOGI("✓✓✓ MOD LOADED SUCCESSFULLY ✓✓✓");
     LOGI("========================================");
-    LOGI("🛡️ Anti-Telemetry: ACTIVE");
-    LOGI("🔒 Network Protection: ENABLED");
-    LOGI("📊 Blocking: 28+ Telemetry Domains");
-    LOGI("🎮 Game Servers: WHITELISTED");
+    LOGI("PROTECTION LAYERS ACTIVE:");
+    LOGI("  [1] Anti-Telemetry: 50+ domains blocked");
+    LOGI("  [2] Network Hooks: connect/dns/getaddrinfo");
+    LOGI("  [3] Anti-Ban: 73 keywords, 30 responses");
+    LOGI("  [4] Anti-Detection: 53 root paths, 31 frameworks");
+    LOGI("  [5] Ultra Guard: 9 extra hooks");
+    LOGI("  [6] Firewall: domain + IP blacklist");
+    LOGI("  [7] Anti-Debug: watchdog thread");
+    LOGI("  [8] Timing Protection: clock spoof");
+    LOGI("  [9] Memory Protection: trampoline hiding");
+    LOGI("  [10] Thread Evasion: scan evasion");
     LOGI("========================================");
-    LOGI("💡 Check Anti-Telemetry menu for stats");
-    LOGI("💡 Watch logcat for 🚫 BLOCKED messages");
+    LOGI("Game Servers: WHITELISTED");
+    LOGI("Watch logcat for BLOCKED messages");
     LOGI("========================================");
     
     return 0;

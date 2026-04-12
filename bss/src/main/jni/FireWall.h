@@ -200,13 +200,46 @@ int isBlockedDomain(const char *domain) {
         strstr(domain, OBFUSCATE("integrity.netease.com")) ||
         strstr(domain, OBFUSCATE("detection.netease.com")) ||
 
-        // === Logging & tracking aggregators ===
         strstr(domain, OBFUSCATE("tracking.netease.com")) ||
         strstr(domain, OBFUSCATE("log-tracker.dragonflygames.cn")) ||
         strstr(domain, OBFUSCATE("t.appsflyer.com")) ||
         strstr(domain, OBFUSCATE("events.appsflyer.com")) ||
         strstr(domain, OBFUSCATE("api.access.umeng.com")) ||
-        strstr(domain, OBFUSCATE("ulogs.umengcloud.com"))) {
+        strstr(domain, OBFUSCATE("ulogs.umengcloud.com")) ||
+
+        strstr(domain, OBFUSCATE("secure.bloodstrike.net")) ||
+        strstr(domain, OBFUSCATE("detect.bloodstrike.net")) ||
+        strstr(domain, OBFUSCATE("integrity.bloodstrike.net")) ||
+        strstr(domain, OBFUSCATE("verify.bloodstrike.io")) ||
+        strstr(domain, OBFUSCATE("event.bloodstrike.net")) ||
+        strstr(domain, OBFUSCATE("monitor.bloodstrike.net")) ||
+        strstr(domain, OBFUSCATE("cheatreport.bloodstrike.net")) ||
+        strstr(domain, OBFUSCATE("behavior.bloodstrike.net")) ||
+        strstr(domain, OBFUSCATE("safeguard.bloodstrike.net")) ||
+        strstr(domain, OBFUSCATE("shield.bloodstrike.net")) ||
+        strstr(domain, OBFUSCATE("data.bloodstrike.net")) ||
+        strstr(domain, OBFUSCATE("audit.bloodstrike.net")) ||
+        strstr(domain, OBFUSCATE("scan.bloodstrike.net")) ||
+        strstr(domain, OBFUSCATE("probe.bloodstrike.net")) ||
+        strstr(domain, OBFUSCATE("sigma-pharosv3-pathn.proxima.nie.netease.com")) ||
+        strstr(domain, OBFUSCATE("proxima.nie.netease.com")) ||
+        strstr(domain, OBFUSCATE("nie.netease.com")) ||
+        strstr(domain, OBFUSCATE("log.netease.com")) ||
+        strstr(domain, OBFUSCATE("stat.netease.com")) ||
+        strstr(domain, OBFUSCATE("bi.netease.com")) ||
+        strstr(domain, OBFUSCATE("bigdata.netease.com")) ||
+        strstr(domain, OBFUSCATE("pharos.nie.netease.com")) ||
+        strstr(domain, OBFUSCATE("log.163.com")) ||
+        strstr(domain, OBFUSCATE("stat.163.com")) ||
+        strstr(domain, OBFUSCATE("bi.163.com")) ||
+        strstr(domain, OBFUSCATE("mixpanel.com")) ||
+        strstr(domain, OBFUSCATE("amplitude.com")) ||
+        strstr(domain, OBFUSCATE("adjust.com")) ||
+        strstr(domain, OBFUSCATE("branch.io")) ||
+        strstr(domain, OBFUSCATE("safetynet.googleapis.com")) ||
+        strstr(domain, OBFUSCATE("playintegrity.googleapis.com")) ||
+        strstr(domain, OBFUSCATE("devicecheck.googleapis.com")) ||
+        strstr(domain, OBFUSCATE("attestation.googleapis.com"))) {
         return 1;
     }
     return 0;
