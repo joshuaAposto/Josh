@@ -1,5 +1,7 @@
 {
-  "version": 2,
-  "update_url": "https://www.apkfiles.com/apk-620331/sacredbs",
-  "message": "New SacredBS update available!"
+  "version_code": 2,
+  "version_name": "1.1",
+  "download_url": "https://github.com/joshuaAposto/Josh/raw/refs/heads/main/SacredBS_latest.apk",
+  "update_log": "Fixed bugs.\nAdded new features.",
+  "force_update": false
 }
